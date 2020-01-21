@@ -8,16 +8,37 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
+	"time"
+	"strings"
 
-	"bytes"
+	//"common"
 )
+const MAX_BUFF int = 100
+const BUFF_SIZE int = 512
+
+type SafeInt struct {
+	sync.Mutex
+	Num int
+}
+
+var g_pos SafeInt
+var gbuffer [MAX_BUFF][]byte
+var gmap map[string]int
+var g_adwords map[string]int
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
+	domserver := flag.String("innserver", "114.114.114.114", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
+	chn_file := flag.String("chn", "./cn.txt", "default china domain list file")
+	block_file := flag.String("block", "./block.txt", "default ad keyword list file")
 	flag.Parse()
+
+	gmap = get_config(*chn_file,true)
+	g_adwords = get_config(*block_file,false)
 
 	if *debug {
 		log.SetFlags(log.Lshortfile)
@@ -25,88 +46,87 @@ func main() {
 		log.SetFlags(0)
 	}
 
-	if err := newUDPServer(*host, *port, *dohserver); err != nil {
+	g_pos.Num = 0 
+    
+    for i := 0; i < MAX_BUFF; i++ {
+    	gbuffer[i] = make([]byte, BUFF_SIZE)
+    }
+
+	if err := newUDPServer(*host, *port, *dohserver,*domserver); err != nil {
 		log.Fatalf("could not listen on %s:%d: %s", *host, *port, err)
 	}
 }
 
-func getUrl(localBuf []byte) string {
-
- 
-	len2 := len(localBuf)
-	if len2 == 0 {
-		return ""
-	}
 
 
-	var s bytes.Buffer
-	
-	i := 0
-	for {
-
-		
-
-		if  (i > (len2 -1)) {
-			return s.String()
-		}
-
-		c := localBuf[i]
-
-
-		if  (c == 0) {
-			return s.String()
-		}
-
-		printable := false
-		if (c >= 'a') && (c <= 'z') {
-			printable = true
-		}
-		if (c >= 'A') && (c <= 'Z') {
-			printable = true
-		}
-		if (c >= '1') && (c <= '9') {
-			printable = true
-		}
-
-		if (c == '-') || (c == '_') || (c == '.') {
-			printable = true
-		}
-
-		tc := string(c)
-		if printable == false {
-			tc = "."
-			//if c != "." { //other char is invalid
-				//return s.String()
-			//}
-		}
-
-		//s = s + tc
-		s.WriteString(tc)
-		i = i + 1
-
-	}
-
-	return s.String()
-
-}
-
-func newUDPServer(host string, port int, dohserver string) error {
+func newUDPServer(host string, port int, dohserver string, domserver string) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
 	if err != nil {
 		return err
 	}
 	for {
-		var raw [512]byte
-		n, addr, err := conn.ReadFromUDP(raw[:512])
+		//var raw [512]byte
+		raw := get_next_buff()
+		n, addr, err := conn.ReadFromUDP(raw)
 		if err != nil {
 			log.Printf("could not read: %s", err)
 			continue
 		}
 		//log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
-		log.Printf("query : %s ", getUrl(raw[13:]))
-		go proxy(dohserver, conn, addr, raw[:n])
-	}
+		
+		url := get_url(raw[13:])
+		if is_blocked(url, g_adwords) == true {
+           log.Printf("blocked : %s ", url)
+		} else {
+
+	          if is_chn_domain(url,gmap) == true {
+	             log.Printf("domestic : %s ", url)
+	             go domestic_query(domserver, conn, addr, raw[:n])
+	          }else{
+	          	 log.Printf("oversea  : %s ", url)
+	          	go proxy(dohserver, conn, addr, raw[:n])
+	          }
+	    }
+	} //end for
 }
+
+func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte) {
+
+    //log.Printf("%v", raw)
+    nstr := domserver
+	if strings.Contains(domserver,":") == false {
+       nstr += ":53"
+	}
+
+	addr, err := net.ResolveUDPAddr("udp", nstr)
+	if err != nil {
+		log.Printf("Can't resolve address: %v", err)
+		return
+	}
+
+	cliConn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		log.Printf("Can't dial: ", err)
+		return
+	}
+	defer cliConn.Close()
+
+	// todo set timeout
+	_, err = cliConn.Write(raw)
+	remoteBuf := get_next_buff()
+
+	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, err = cliConn.Read(remoteBuf)
+	if err != nil {
+		log.Printf("read udp fail: %v\n", err)
+		return
+	}
+
+	conn.WriteToUDP(remoteBuf,Remoteaddr)
+	return 
+}
+
+
 
 func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 	enc := base64.RawURLEncoding.EncodeToString(raw)
@@ -142,4 +162,19 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 		log.Printf("could not write to udp connection: %s", err)
 		return
 	}
+}
+
+func get_next_buff() []byte {
+
+    g_pos.Lock()
+    //log.Printf("url = %s, buffer pos = %d\n", url,g_pos.Num)
+    old_pos := g_pos.Num
+			g_pos.Num += 1 
+            if g_pos.Num == MAX_BUFF {
+               g_pos.Num = 0
+
+            }
+
+       g_pos.Unlock()
+     return gbuffer[old_pos]
 }
