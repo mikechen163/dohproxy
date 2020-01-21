@@ -26,12 +26,14 @@ var g_pos SafeInt
 var gbuffer [MAX_BUFF][]byte
 var gmap map[string]int
 var g_adwords map[string]int
+var server_list []string
+var server_ind int
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
-	domserver := flag.String("innserver", "114.114.114.114", "Domestic Dns server address")
+	domserver := flag.String("innserver", "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	chn_file := flag.String("chn", "./cn.txt", "default china domain list file")
 	block_file := flag.String("block", "./block.txt", "default ad keyword list file")
@@ -47,19 +49,28 @@ func main() {
 	}
 
 	g_pos.Num = 0 
+
+	server_list = strings.Split(*domserver,",")
+	server_ind = 0
+
+	for i := 0; i < len(server_list); i++ {
+    	log.Printf("dns server : %s", server_list[i])
+    }
     
     for i := 0; i < MAX_BUFF; i++ {
     	gbuffer[i] = make([]byte, BUFF_SIZE)
     }
 
-	if err := newUDPServer(*host, *port, *dohserver,*domserver); err != nil {
+
+
+	if err := newUDPServer(*host, *port, *dohserver); err != nil {
 		log.Fatalf("could not listen on %s:%d: %s", *host, *port, err)
 	}
 }
 
 
 
-func newUDPServer(host string, port int, dohserver string, domserver string) error {
+func newUDPServer(host string, port int, dohserver string) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
 	if err != nil {
 		return err
@@ -81,7 +92,7 @@ func newUDPServer(host string, port int, dohserver string, domserver string) err
 
 	          if is_chn_domain(url,gmap) == true {
 	             log.Printf("domestic : %s ", url)
-	             go domestic_query(domserver, conn, addr, raw[:n])
+	             go domestic_query(get_next_server(), conn, addr, raw[:n])
 	          }else{
 	          	 log.Printf("oversea  : %s ", url)
 	          	go proxy(dohserver, conn, addr, raw[:n])
@@ -178,3 +189,16 @@ func get_next_buff() []byte {
        g_pos.Unlock()
      return gbuffer[old_pos]
 }
+
+func get_next_server() string {
+	max  := len(server_list)
+    old_pos := server_ind
+    server_ind += 1
+    if server_ind == max{
+    	server_ind = 0
+    }
+
+    return server_list[old_pos]
+}
+
+
