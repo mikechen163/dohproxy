@@ -1,1 +1,4 @@
 dohproxy
+dohproxy.*
+mydoh
+run.log
