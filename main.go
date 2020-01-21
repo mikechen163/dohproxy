@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+
+	"bytes"
 )
 
 func main() {
@@ -28,6 +30,66 @@ func main() {
 	}
 }
 
+func getUrl(localBuf []byte) string {
+
+ 
+	len2 := len(localBuf)
+	if len2 == 0 {
+		return ""
+	}
+
+
+	var s bytes.Buffer
+	
+	i := 0
+	for {
+
+		
+
+		if  (i > (len2 -1)) {
+			return s.String()
+		}
+
+		c := localBuf[i]
+
+
+		if  (c == 0) {
+			return s.String()
+		}
+
+		printable := false
+		if (c >= 'a') && (c <= 'z') {
+			printable = true
+		}
+		if (c >= 'A') && (c <= 'Z') {
+			printable = true
+		}
+		if (c >= '1') && (c <= '9') {
+			printable = true
+		}
+
+		if (c == '-') || (c == '_') || (c == '.') {
+			printable = true
+		}
+
+		tc := string(c)
+		if printable == false {
+			tc = "."
+			//if c != "." { //other char is invalid
+				//return s.String()
+			//}
+		}
+
+		//s = s + tc
+		s.WriteString(tc)
+		i = i + 1
+
+	}
+
+	return s.String()
+
+}
+
 func newUDPServer(host string, port int, dohserver string) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
 	if err != nil {
@@ -40,7 +102,8 @@ func newUDPServer(host string, port int, dohserver string) error {
 			log.Printf("could not read: %s", err)
 			continue
 		}
-		log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
+		//log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
+		log.Printf("query : %s ", getUrl(raw[13:]))
 		go proxy(dohserver, conn, addr, raw[:n])
 	}
 }
