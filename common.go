@@ -28,12 +28,23 @@ func is_blocked(url string, m map[string]int ) bool{
   return false
 }
 
-func is_chn_domain(url string, m map[string]int ) bool{
+func is_chn_domain(nurl string, m map[string]int ) bool{
+
+  url := strings.TrimSpace(nurl) 
   
-  if 0 == m[format_domain_name(url)]{
-    return false
+  if 1 == m[format_domain_name(url)]{
+    return true
   }
-  return true
+
+  if strings.HasSuffix(url,".cn") || strings.HasSuffix(url,".qq.com") || strings.HasSuffix(url,".baidu.com")  {
+    return true
+  }
+
+  if strings.Contains(url,"apple.com") ||  strings.Contains(url,"mzstatic.com") {
+    return true
+  }
+
+  return false
 }
 
 

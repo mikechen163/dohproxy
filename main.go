@@ -86,8 +86,12 @@ func newUDPServer(host string, port int, dohserver string) error {
 		//log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
 		
 		url := get_url(raw[13:])
+        if len(url) == 0 {
+        	continue
+        }
+
 		if is_blocked(url, g_adwords) == true {
-           log.Printf("blocked : %s ", url)
+           log.Printf("blocked  : %s ", url)
 		} else {
 
 	          if is_chn_domain(url,gmap) == true {
