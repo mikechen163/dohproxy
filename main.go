@@ -35,8 +35,8 @@ func main() {
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
 	domserver := flag.String("innserver", "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
-	chn_file := flag.String("chn", "./cn.txt", "default china domain list file")
-	block_file := flag.String("block", "./block.txt", "default ad keyword list file")
+	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
+	block_file := flag.String("block", "block.txt", "default ad keyword list file")
 	flag.Parse()
 
 	gmap = get_config(*chn_file,true)
@@ -90,8 +90,14 @@ func newUDPServer(host string, port int, dohserver string) error {
         	continue
         }
 
+        if raw[n-3] == 28 {
+    	//do not support ipv6 request
+    	continue 
+       }
+
 		if is_blocked(url, g_adwords) == true {
            log.Printf("blocked  : %s ", url)
+           continue
 		} else {
 
 	          if is_chn_domain(url,gmap) == true {

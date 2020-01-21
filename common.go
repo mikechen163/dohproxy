@@ -53,11 +53,7 @@ func format_domain_name(s string) string{
     
     count2 := strings.Count(str,".")
 
-   if count2 == 0 {
-    return str
-   }
-
-   if count2 == 1 {
+   if count2 <= 1 {
     return str
    }
    
@@ -68,10 +64,9 @@ func format_domain_name(s string) string{
         }
      }
 
-     if strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")   {
+     if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
              nstr := strings.Split(str,".")
-             len2 := len(nstr) 
-             return nstr[len2-3]+"."+nstr[len2-2]+"."+nstr[len2-1]
+             return strings.Join(nstr[1:],",")
 
       }
       return str
