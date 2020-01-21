@@ -14,7 +14,7 @@ import (
 
 	//"common"
 )
-const MAX_BUFF int = 100
+const MAX_BUFF int = 300
 const BUFF_SIZE int = 512
 
 type SafeInt struct {

@@ -40,7 +40,7 @@ func is_chn_domain(nurl string, m map[string]int ) bool{
     return true
   }
 
-  if strings.Contains(url,"apple.com") ||  strings.Contains(url,"mzstatic.com") {
+  if strings.Contains(url,"apple.com") ||  strings.Contains(url,"mzstatic.com") ||  strings.Contains(url,".cn.") {
     return true
   }
 
