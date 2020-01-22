@@ -33,7 +33,7 @@ var   default_ttl  float64
 
 type DnsCache struct {
 	ttl  time.Time
-	//valid bool
+	req_type byte
 	msg []byte
 }
 
@@ -103,8 +103,12 @@ func newUDPServer(host string, port int, dohserver string) error {
         	continue
         }
 
-        if cache, ok := g_buffer[url]; ok {
-          //log.Printf("cached found : %s", url)
+        //log.Printf("url : %s", url)
+
+        req_type := raw[len(url)+12+3]
+
+        if cache, ok := g_buffer[get_key(url,req_type)]; ok {
+          log.Printf("cached found : %s", url)
 
 		  du := time.Since(cache.ttl).Seconds() 
 		  if du <=  default_ttl {
@@ -120,16 +124,16 @@ func newUDPServer(host string, port int, dohserver string) error {
 
 		  }else{
 		  	log.Printf("ttl expired , detete cached : %s %v ", url, du)
-		  	delete(g_buffer,url)
+		  	delete(g_buffer,get_key(url,req_type))
 		  	//valid = false
 		  }
 
 	    }
 
-        if raw[n-3] == 28 {
+        //if raw[n-3] == 28 {
     	//do not support ipv6 request
-    	continue 
-       }
+    	//continue 
+       //}
 
         if strings.HasSuffix(url,".lan") {
     	// .lan
@@ -227,21 +231,38 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 		return
 	}
 
+
+    
 	url = get_url(raw[12:])
-	if _, ok := g_buffer[url]; ok {
+	req_type := raw[len(url)+12+3]
+	if value, ok := g_buffer[get_key(url,req_type)]; ok {
 
 		//log.Printf("Should not happen cached : %s", url)
+		if (req_type != value.req_type){
+			add_node(msg,url,req_type)
+		}
 	 
 	}else{
-	    //log.Printf("cached : %s %v", url,msg)
+	    //log.Printf("cached : %s %v", url,msg)	    
+	    add_node(msg,url,req_type)
+    }
 
-        var ele DnsCache
+}
+
+func get_key(url string,req_type byte) string{
+	return url + string(req_type)
+}
+
+func add_node(msg []byte, url string, req_type byte){
+	    var ele DnsCache
+
         ele.msg = make([]byte, len(msg))
         copy(ele.msg, msg) 
-		ele.ttl = time.Now()
-        g_buffer[url] = ele
 
-    }
+		ele.ttl = time.Now()
+		ele.req_type = req_type
+		
+        g_buffer[get_key(url,req_type)] = ele
 
 }
 
