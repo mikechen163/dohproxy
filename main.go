@@ -17,6 +17,7 @@ import (
 const MAX_BUFF int = 300
 const BUFF_SIZE int = 512
 
+
 type SafeInt struct {
 	sync.Mutex
 	Num int
@@ -28,10 +29,20 @@ var gmap map[string]int
 var g_adwords map[string]int
 var server_list []string
 var server_ind int
+var   default_ttl  float64 
+
+type DnsCache struct {
+	ttl  time.Time
+	//valid bool
+	msg []byte
+}
+
+var g_buffer map[string]DnsCache
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
+	ttl := flag.Int("ttl", 3600, "default oversea ttl length")
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
 	domserver := flag.String("innserver", "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
@@ -61,6 +72,8 @@ func main() {
     	gbuffer[i] = make([]byte, BUFF_SIZE)
     }
 
+     g_buffer = make(map[string]DnsCache)
+     default_ttl = float64(*ttl)
 
 
 	if err := newUDPServer(*host, *port, *dohserver); err != nil {
@@ -90,8 +103,36 @@ func newUDPServer(host string, port int, dohserver string) error {
         	continue
         }
 
+        if cache, ok := g_buffer[url]; ok {
+          //log.Printf("cached found : %s", url)
+
+		  du := time.Since(cache.ttl).Seconds() 
+		  if du <=  default_ttl {
+		  //if true {
+              //update tid
+              cache.msg[0] = raw[0]
+              cache.msg[1] = raw[1]
+
+			  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
+			    log.Printf("could not write cache to local udp connection: %s", err)
+			  }
+			  continue
+
+		  }else{
+		  	log.Printf("ttl expired , detete cached : %s %v ", url, du)
+		  	delete(g_buffer,url)
+		  	//valid = false
+		  }
+
+	    }
+
         if raw[n-3] == 28 {
     	//do not support ipv6 request
+    	continue 
+       }
+
+        if strings.HasSuffix(url,".lan") {
+    	// .lan
     	continue 
        }
 
@@ -121,13 +162,13 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 
 	addr, err := net.ResolveUDPAddr("udp", nstr)
 	if err != nil {
-		log.Printf("Can't resolve address: %v", err)
+		log.Printf("Can't resolve address: %s %v", nstr, err)
 		return
 	}
 
 	cliConn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		log.Printf("Can't dial: ", err)
+		log.Printf("Can't dial: %s %v", nstr,err)
 		return
 	}
 	defer cliConn.Close()
@@ -139,12 +180,14 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, err = cliConn.Read(remoteBuf)
 	if err != nil {
-		log.Printf("read udp fail: %v\n", err)
+		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
 		return
 	}
 
-	conn.WriteToUDP(remoteBuf,Remoteaddr)
-	return 
+	if _, err := conn.WriteToUDP(remoteBuf, Remoteaddr); err != nil {
+		log.Printf("could not write to local connection: %v", err)
+		return
+	}
 }
 
 
@@ -183,6 +226,23 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 		log.Printf("could not write to udp connection: %s", err)
 		return
 	}
+
+	url = get_url(raw[13:])
+	if _, ok := g_buffer[url]; ok {
+
+		//log.Printf("Should not happen cached : %s", url)
+	 
+	}else{
+	    //log.Printf("cached : %s %v", url,msg)
+
+        var ele DnsCache
+        ele.msg = make([]byte, len(msg))
+        copy(ele.msg, msg) 
+		ele.ttl = time.Now()
+        g_buffer[url] = ele
+
+    }
+
 }
 
 func get_next_buff() []byte {

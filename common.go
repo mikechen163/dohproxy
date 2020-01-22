@@ -163,6 +163,10 @@ func get_url(localBuf []byte) string {
             //}
         }
 
+        if (c == ' ') {
+          return s.String()
+        }
+
         //s = s + tc
         s.WriteString(tc)
         i = i + 1
