@@ -98,7 +98,7 @@ func newUDPServer(host string, port int, dohserver string) error {
 		}
 		//log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
 		
-		url := get_url(raw[13:])
+		url := get_url(raw[12:])
         if len(url) == 0 {
         	continue
         }
@@ -227,7 +227,7 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 		return
 	}
 
-	url = get_url(raw[13:])
+	url = get_url(raw[12:])
 	if _, ok := g_buffer[url]; ok {
 
 		//log.Printf("Should not happen cached : %s", url)

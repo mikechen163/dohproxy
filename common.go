@@ -49,8 +49,9 @@ func is_chn_domain(nurl string, m map[string]int ) bool{
 
 
 func format_domain_name(s string) string{
-    str := strings.Trim(s, " ")
-    
+
+   str := strings.Trim(s, " ")
+     
     count2 := strings.Count(str,".")
 
    if count2 <= 1 {
@@ -113,6 +114,57 @@ func get_config(fname string, cn_domain bool) map[string]int{
 
 }
 
+
+func get_nsize(raw []byte,n int) string{
+
+   buf := bytes.NewBuffer(raw).Next(n+1)
+
+  return string(buf)
+
+}
+
+func get_url_new(raw []byte) string {
+
+ 
+    len2 := len(raw)
+    if len2 == 0 {
+        return ""
+    }
+
+    i:= 0 
+    var s bytes.Buffer
+
+   //log.Printf("xx\n")
+    
+    for {
+        c:=int(raw[i])
+        //log.Printf("%s %d %d \n", s.String(),c,i)
+
+        if (i+c >= len2) || (c == 0) || (c == ' '){
+
+            if (i+c >= len2) {
+               log.Printf("%s %d %d %v \n", s.String(),c,i,raw)
+            }
+
+            return s.String()
+        }
+
+        if (i>0){
+          s.WriteString(".") 
+          //i+=1           
+        } 
+        i+=1  
+
+        s.WriteString(get_nsize(raw[i:],c))
+        //log.Printf("%s %d %d \n", s.String(),c,i)
+        i = i+c
+    } 
+
+
+}
+
+
+
 func get_url(localBuf []byte) string {
 
  
@@ -124,7 +176,7 @@ func get_url(localBuf []byte) string {
 
     var s bytes.Buffer
     
-    i := 0
+    i := 1
     for {
 
         
