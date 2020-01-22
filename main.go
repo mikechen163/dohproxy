@@ -108,7 +108,7 @@ func newUDPServer(host string, port int, dohserver string) error {
         req_type := raw[len(url)+12+3]
 
         if cache, ok := g_buffer[get_key(url,req_type)]; ok {
-          log.Printf("cached found : %s", url)
+          //log.Printf("cached found : %s", url)
 
 		  du := time.Since(cache.ttl).Seconds() 
 		  if du <=  default_ttl {
@@ -146,10 +146,10 @@ func newUDPServer(host string, port int, dohserver string) error {
 		} else {
 
 	          if is_chn_domain(url,gmap) == true {
-	             log.Printf("domestic : %s ", url)
+	             log.Printf("req_type %02d , domestic : %s ", req_type ,url)
 	             go domestic_query(get_next_server(), conn, addr, raw[:n])
 	          }else{
-	          	 log.Printf("oversea  : %s ", url)
+	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 	          	go proxy(dohserver, conn, addr, raw[:n])
 	          }
 	    }
@@ -192,6 +192,20 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		log.Printf("could not write to local connection: %v", err)
 		return
 	}
+
+	url := get_url(raw[12:])
+	req_type := raw[len(url)+12+3]
+	if value, ok := g_buffer[get_key(url,req_type)]; ok {
+
+		//log.Printf("Should not happen cached : %s", url)
+		if (req_type != value.req_type){
+			add_node(remoteBuf,url,req_type)
+		}
+	 
+	}else{
+	    //log.Printf("cached : %s %v", url,msg)	    
+	    add_node(remoteBuf,url,req_type)
+    }
 }
 
 
