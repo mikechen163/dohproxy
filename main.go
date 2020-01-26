@@ -123,7 +123,7 @@ func newUDPServer(host string, port int, dohserver string) error {
 			  continue
 
 		  }else{
-		  	log.Printf("ttl expired , detete cached : %s %v ", url, du)
+		  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
 		  	delete(g_buffer,get_key(url,req_type))
 		  	//valid = false
 		  }

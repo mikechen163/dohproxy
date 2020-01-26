@@ -67,7 +67,9 @@ func format_domain_name(s string) string{
 
      if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
              nstr := strings.Split(str,".")
-             return strings.Join(nstr[1:],".")
+             //return strings.Join(nstr[1:],".")
+             size := len(nstr)
+             return strings.Join(nstr[(size-2):],".")
 
       }
       return str
