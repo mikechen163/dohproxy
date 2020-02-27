@@ -37,6 +37,7 @@ type DnsCache struct {
 	msg []byte
 }
 
+var rwLock *sync.RWMutex 
 var g_buffer map[string]DnsCache
 
 func main() {
@@ -72,6 +73,7 @@ func main() {
     	gbuffer[i] = make([]byte, BUFF_SIZE)
     }
 
+     rwLock = new(sync.RWMutex)
      g_buffer = make(map[string]DnsCache)
      default_ttl = float64(*ttl)
 
@@ -107,7 +109,8 @@ func newUDPServer(host string, port int, dohserver string) error {
 
         req_type := raw[len(url)+12+3]
 
-        if cache, ok := g_buffer[get_key(url,req_type)]; ok {
+        //if cache, ok := g_buffer[get_key(url,req_type)]; ok {
+        if cache, ok := read_map(get_key(url,req_type)); ok {
           //log.Printf("cached found : %s", url)
 
 		  du := time.Since(cache.ttl).Seconds() 
@@ -124,7 +127,8 @@ func newUDPServer(host string, port int, dohserver string) error {
 
 		  }else{
 		  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
-		  	delete(g_buffer,get_key(url,req_type))
+		  	//delete(g_buffer,get_key(url,req_type))
+		  	delete_map(get_key(url,req_type))
 		  	//valid = false
 		  }
 
@@ -195,7 +199,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 
 	url := get_url(raw[12:])
 	req_type := raw[len(url)+12+3]
-	if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	//if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	if value, ok := read_map(get_key(url,req_type)); ok {
 
 		//log.Printf("Should not happen cached : %s", url)
 		if (req_type != value.req_type){
@@ -249,7 +254,8 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
     
 	url = get_url(raw[12:])
 	req_type := raw[len(url)+12+3]
-	if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	//if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	if value, ok := read_map(get_key(url,req_type)); ok {
 
 		//log.Printf("Should not happen cached : %s", url)
 		if (req_type != value.req_type){
@@ -261,6 +267,27 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 	    add_node(msg,url,req_type)
     }
 
+}
+
+func read_map(key string) (DnsCache ,bool){
+
+    rwLock.RLock()
+    value, ok := g_buffer[key]
+    rwLock.RUnlock()
+
+    return value,ok
+}
+
+func write_map(key string, ele DnsCache){
+  rwLock.RLock()
+  g_buffer[key] = ele
+  rwLock.RUnlock()
+}
+
+func delete_map(key string){
+  rwLock.RLock()
+  delete(g_buffer,key)
+  rwLock.RUnlock()
 }
 
 func get_key(url string,req_type byte) string{
@@ -276,7 +303,8 @@ func add_node(msg []byte, url string, req_type byte){
 		ele.ttl = time.Now()
 		ele.req_type = req_type
 		
-        g_buffer[get_key(url,req_type)] = ele
+       // g_buffer[get_key(url,req_type)] = ele
+       write_map(get_key(url,req_type),ele)
 
 }
 
