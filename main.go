@@ -279,15 +279,15 @@ func read_map(key string) (DnsCache ,bool){
 }
 
 func write_map(key string, ele DnsCache){
-  rwLock.RLock()
+  rwLock.Lock()
   g_buffer[key] = ele
-  rwLock.RUnlock()
+  rwLock.Unlock()
 }
 
 func delete_map(key string){
-  rwLock.RLock()
+  rwLock.Lock()
   delete(g_buffer,key)
-  rwLock.RUnlock()
+  rwLock.Unlock()
 }
 
 func get_key(url string,req_type byte) string{
