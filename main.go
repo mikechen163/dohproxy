@@ -45,7 +45,7 @@ func main() {
 	port := flag.Int("port", 5353, "dns port to listen on")
 	ttl := flag.Int("ttl", 3600, "default oversea ttl length")
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
-	domserver := flag.String("innserver", "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29", "Domestic Dns server address")
+	domserver := flag.String("innserver", "183.60.83.19,117.50.10.10", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
@@ -62,6 +62,8 @@ func main() {
 
 	g_pos.Num = 0 
 
+    	log.Printf(" listen on port : %d", *port)
+	
 	server_list = strings.Split(*domserver,",")
 	server_ind = 0
 
@@ -154,7 +156,13 @@ func newUDPServer(host string, port int, dohserver string) error {
 	             go domestic_query(get_next_server(), conn, addr, raw[:n])
 	          }else{
 	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
-	          	go proxy(dohserver, conn, addr, raw[:n])
+			 
+                	if strings.Contains(dohserver,":") == false {
+	                	go proxy(dohserver, conn, addr, raw[:n])
+			}else{
+	                  go domestic_query(dohserver, conn, addr, raw[:n])
+	         	}
+
 	          }
 	    }
 	} //end for
