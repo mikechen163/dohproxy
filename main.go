@@ -45,7 +45,7 @@ func main() {
 	port := flag.Int("port", 5353, "dns port to listen on")
 	ttl := flag.Int("ttl", 3600, "default oversea ttl length")
 	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
-	domserver := flag.String("innserver", "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29", "Domestic Dns server address")
+	domserver := flag.String("innserver", "223.5.5.5,117.50.10.10", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
@@ -62,6 +62,8 @@ func main() {
 
 	g_pos.Num = 0 
 
+    	log.Printf(" listen on port : %d", *port)
+	
 	server_list = strings.Split(*domserver,",")
 	server_ind = 0
 
@@ -110,29 +112,29 @@ func newUDPServer(host string, port int, dohserver string) error {
         req_type := raw[len(url)+12+3]
 
         //if cache, ok := g_buffer[get_key(url,req_type)]; ok {
-        if cache, ok := read_map(get_key(url,req_type)); ok {
-          //log.Printf("cached found : %s", url)
+    //     if cache, ok := read_map(get_key(url,req_type)); ok {
+    //       //log.Printf("cached found : %s", url)
 
-		  du := time.Since(cache.ttl).Seconds() 
-		  if du <=  default_ttl {
-		  //if true {
-              //update tid
-              cache.msg[0] = raw[0]
-              cache.msg[1] = raw[1]
+		  // du := time.Since(cache.ttl).Seconds() 
+		  // if du <=  default_ttl {
+		  // //if true {
+    //           //update tid
+    //           cache.msg[0] = raw[0]
+    //           cache.msg[1] = raw[1]
 
-			  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
-			    log.Printf("could not write cache to local udp connection: %s", err)
-			  }
-			  continue
+			 //  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
+			 //    log.Printf("could not write cache to local udp connection: %s", err)
+			 //  }
+			 //  continue
 
-		  }else{
-		  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
-		  	//delete(g_buffer,get_key(url,req_type))
-		  	delete_map(get_key(url,req_type))
-		  	//valid = false
-		  }
+		  // }else{
+		  // 	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
+		  // 	//delete(g_buffer,get_key(url,req_type))
+		  // 	delete_map(get_key(url,req_type))
+		  // 	//valid = false
+		  // }
 
-	    }
+	   //  }
 
         //if raw[n-3] == 28 {
     	//do not support ipv6 request
@@ -154,7 +156,13 @@ func newUDPServer(host string, port int, dohserver string) error {
 	             go domestic_query(get_next_server(), conn, addr, raw[:n])
 	          }else{
 	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
-	          	go proxy(dohserver, conn, addr, raw[:n])
+			 
+                	if strings.Contains(dohserver,":") == false {
+	                	go proxy(dohserver, conn, addr, raw[:n])
+			}else{
+	                  go domestic_query(dohserver, conn, addr, raw[:n])
+	         	}
+
 	          }
 	    }
 	} //end for
@@ -197,20 +205,20 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		return
 	}
 
-	url := get_url(raw[12:])
-	req_type := raw[len(url)+12+3]
-	//if value, ok := g_buffer[get_key(url,req_type)]; ok {
-	if value, ok := read_map(get_key(url,req_type)); ok {
+	// url := get_url(raw[12:])
+	// req_type := raw[len(url)+12+3]
+	// //if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	// if value, ok := read_map(get_key(url,req_type)); ok {
 
-		//log.Printf("Should not happen cached : %s", url)
-		if (req_type != value.req_type){
-			add_node(remoteBuf,url,req_type)
-		}
+	// 	//log.Printf("Should not happen cached : %s", url)
+	// 	if (req_type != value.req_type){
+	// 		add_node(remoteBuf,url,req_type)
+	// 	}
 	 
-	}else{
-	    //log.Printf("cached : %s %v", url,msg)	    
-	    add_node(remoteBuf,url,req_type)
-    }
+	// }else{
+	//     //log.Printf("cached : %s %v", url,msg)	    
+	//     add_node(remoteBuf,url,req_type)
+ //    }
 }
 
 
@@ -252,20 +260,20 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 
 
     
-	url = get_url(raw[12:])
-	req_type := raw[len(url)+12+3]
-	//if value, ok := g_buffer[get_key(url,req_type)]; ok {
-	if value, ok := read_map(get_key(url,req_type)); ok {
+	// url = get_url(raw[12:])
+	// req_type := raw[len(url)+12+3]
+	// //if value, ok := g_buffer[get_key(url,req_type)]; ok {
+	// if value, ok := read_map(get_key(url,req_type)); ok {
 
-		//log.Printf("Should not happen cached : %s", url)
-		if (req_type != value.req_type){
-			add_node(msg,url,req_type)
-		}
+	// 	//log.Printf("Should not happen cached : %s", url)
+	// 	if (req_type != value.req_type){
+	// 		add_node(msg,url,req_type)
+	// 	}
 	 
-	}else{
-	    //log.Printf("cached : %s %v", url,msg)	    
-	    add_node(msg,url,req_type)
-    }
+	// }else{
+	//     //log.Printf("cached : %s %v", url,msg)	    
+	//     add_node(msg,url,req_type)
+ //    }
 
 }
 

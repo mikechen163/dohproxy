@@ -40,7 +40,7 @@ func is_chn_domain(nurl string, m map[string]int ) bool{
     return true
   }
 
-  if strings.Contains(url,"apple.com") ||  strings.Contains(url,"mzstatic.com") ||  strings.Contains(url,".cn.") {
+  if  strings.Contains(url,"mzstatic.com") ||  strings.Contains(url,".cn.") {
     return true
   }
 
@@ -186,6 +186,10 @@ func get_url(localBuf []byte) string {
         if  (i > (len2 -1)) {
             return s.String()
         }
+
+	if  (i>500){
+	   return s.String()
+	}
 
         c := localBuf[i]
 
