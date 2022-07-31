@@ -6,6 +6,21 @@ This program is inspired by https://github.com/satran/dohproxy. I forked the ori
 
 Then you got a dns proxy, which listen on 5353(default), and forward the request to upstream dns servers for normal domestic sites, and using dns over https for blocked sites like google facebook etc.
 
+简单的 DNS 转发器
+
+对于任何 dns 请求，首先检查 cn.txt ，如果找到，则将 dns 请求转发到国内服务器，否则将 dns 请求转发到 dns.google 等海外 dns 服务器。
+
+用法：
+
+对海外 dns req 使用 dns over http 协议。
+./dohproxy -dohserver http://8.8.8.8/dns-query
+
+或者
+使用 udp 处理海外 dns 请求
+./dohproxy -dohserver 8.8.8.8:53
+
+./dohproxy 打印帮助信息
+
 
 # install
   
