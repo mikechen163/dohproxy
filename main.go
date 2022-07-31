@@ -44,8 +44,10 @@ func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
 	ttl := flag.Int("ttl", 3600, "default oversea ttl length")
-	dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
-	domserver := flag.String("innserver", "223.5.5.5,117.50.10.10", "Domestic Dns server address")
+	//dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
+	dohserver := flag.String("dohserver", "https://8.8.8.8/dns-query", "DNS Over HTTPS server address")
+	
+	domserver := flag.String("innserver", "223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
@@ -157,7 +159,7 @@ func newUDPServer(host string, port int, dohserver string) error {
 	          }else{
 	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 			 
-                	if strings.Contains(dohserver,":") == false {
+                	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n])
 			}else{
 	                  go domestic_query(dohserver, conn, addr, raw[:n])
