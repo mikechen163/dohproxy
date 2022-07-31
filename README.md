@@ -13,7 +13,7 @@ Then you got a dns proxy, which listen on 5353(default), and forward the request
 用法：
 
 对海外 dns req 使用 dns over http 协议。
-./dohproxy -dohserver http://8.8.8.8/dns-query
+./dohproxy -dohserver https://8.8.8.8/dns-query
 
 或者
 使用 udp 处理海外 dns 请求
@@ -40,11 +40,11 @@ Then you got a dns proxy, which listen on 5353(default), and forward the request
     -debug
     	print debug logs
     -dohserver string
-    	DNS Over HTTPS server address (default "https://mozilla.cloudflare-dns.com/dns-query")
+    	DNS Over HTTPS server address (default "https://8.8.8.8/dns-query")
     -host string
     	interface to listen on (default "localhost")
     -innserver string
-    	Domestic Dns server address (default "180.76.76.76,114.114.114.114,223.5.5.5,119.29.29.29")
+    	Domestic Dns server address (default "223.5.5.5,119.29.29.29")
     -port int
     	dns port to listen on (default 5353)
     -ttl int
