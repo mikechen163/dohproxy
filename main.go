@@ -49,6 +49,7 @@ func main() {
 	
 	domserver := flag.String("innserver", "223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
+	fallback_mode := flag.Bool("fallback", false, "set fallback mode")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
 	flag.Parse()
@@ -72,6 +73,12 @@ func main() {
 	for i := 0; i < len(server_list); i++ {
     	log.Printf("dns server : %s", server_list[i])
     }
+
+    log.Printf("oversea dns server : %s", *dohserver)
+
+    if (*fallback_mode == true ) {
+     log.Printf("fallback is true")
+    }
     
     for i := 0; i < MAX_BUFF; i++ {
     	gbuffer[i] = make([]byte, BUFF_SIZE)
@@ -82,14 +89,14 @@ func main() {
      default_ttl = float64(*ttl)
 
 
-	if err := newUDPServer(*host, *port, *dohserver); err != nil {
+	if err := newUDPServer(*host, *port, *dohserver ,*fallback_mode); err != nil {
 		log.Fatalf("could not listen on %s:%d: %s", *host, *port, err)
 	}
 }
 
 
 
-func newUDPServer(host string, port int, dohserver string) error {
+func newUDPServer(host string, port int, dohserver string, fallback_mode bool) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
 	if err != nil {
 		return err
@@ -153,10 +160,12 @@ func newUDPServer(host string, port int, dohserver string) error {
            continue
 		} else {
 
-	          if is_chn_domain(url,gmap) == true {
+	          if ((is_chn_domain(url,gmap) == true) || (fallback_mode == true)) {
 	             log.Printf("req_type %02d , domestic : %s ", req_type ,url)
 	             go domestic_query(get_next_server(), conn, addr, raw[:n])
 	          }else{
+
+
 	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 			 
                 	if strings.Contains(dohserver,"https") == true {
