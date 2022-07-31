@@ -121,10 +121,11 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
         req_type := raw[len(url)+12+3]
 
         if cache, ok := read_map(get_key(url,req_type)); ok {
-          //log.Printf("cached found : %s", url)
-
+          
 		  du := time.Since(cache.ttl).Seconds() 
 		  if du <=  default_ttl {
+
+		  	  log.Printf("cached found : %s", url)
               //update tid
               cache.msg[0] = raw[0]
               cache.msg[1] = raw[1]
@@ -138,6 +139,16 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 		  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
 		  	delete_map(get_key(url,req_type))
 		  	//valid = false
+		  	
+		  	log.Printf("req_type %02d , oversea  : %s ", req_type,url)
+			 
+             if strings.Contains(dohserver,"https") == true {
+	                	go proxy(dohserver, conn, addr, raw[:n])
+			      }else{
+	                  go domestic_query(dohserver, conn, addr, raw[:n] , true)
+	         	 }
+		  	
+
 		  }
 
 	    }
@@ -159,7 +170,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 
 	          if ((is_chn_domain(url,gmap) == true) || (fallback_mode == true)) {
 	             log.Printf("req_type %02d , domestic : %s ", req_type ,url)
-	             go domestic_query(get_next_server(), conn, addr, raw[:n])
+	             go domestic_query(get_next_server(), conn, addr, raw[:n] , false)
 	          }else{
 
 
@@ -168,7 +179,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
                 	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n])
 			}else{
-	                  go domestic_query(dohserver, conn, addr, raw[:n])
+	                  go domestic_query(dohserver, conn, addr, raw[:n] , true)
 	         	}
 
 	          }
@@ -176,7 +187,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 	} //end for
 }
 
-func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte) {
+func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
 
     //log.Printf("%v", raw)
     nstr := domserver
@@ -213,6 +224,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		return
 	}
 
+	if cache_flag == true {
+
 	url := get_url(raw[12:])
 	req_type := raw[len(url)+12+3]
 
@@ -227,6 +240,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 	    //log.Printf("cached : %s %v", url,msg)	    
 	    add_node(remoteBuf,url,req_type)
     }
+   } //end of cache_flag
+
 }
 
 
