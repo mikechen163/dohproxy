@@ -46,7 +46,7 @@ var g_buffer map[string]DnsCache
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
-	ttl := flag.Int("ttl", 1800, "default oversea ttl length")
+	ttl := flag.Int("ttl", 7200, "default oversea ttl length")
 	//dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
 	dohserver := flag.String("dohserver", "https://8.8.8.8/dns-query", "DNS Over HTTPS server address")
 	
