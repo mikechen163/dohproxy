@@ -164,7 +164,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				  continue
 
 			  }else{
-			  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
+			  	log.Printf("ttl expired , detete cached : %s %v ", url, du)
 			  	delete_map(get_key(url,req_type))
 			  	//valid = false
 			  	
@@ -263,12 +263,14 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 	url := get_url(raw[12:])
 	req_type := raw[len(url)+12+3]
 
-	if value, ok := read_map(get_key(url,req_type)); ok {
+	if _ , ok := read_map(get_key(url,req_type)); ok {
 
-		//log.Printf("Should not happen cached : %s", url)
-		if (req_type != value.req_type){
-			add_node(remoteBuf,url,req_type)
-		}
+		log.Printf("updating cache for  : %s", url)
+ 
+        //delete old node first
+		delete_map(get_key(url,req_type))
+
+		add_node(remoteBuf,url,req_type)
 	 
 	}else{
 	    //log.Printf("cached : %s %v", url,msg)	    
@@ -323,12 +325,16 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte , 
     
 		url = get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
-		if value, ok := read_map(get_key(url,req_type)); ok {
+		if _, ok := read_map(get_key(url,req_type)); ok {
 
 			//log.Printf("Should not happen cached : %s", url)
-			if (req_type != value.req_type){
-				add_node(msg,url,req_type)
-			}
+			log.Printf("updating cache for  : %s", url)
+		     
+
+			 //delete old node first
+		     delete_map(get_key(url,req_type))
+
+		      add_node(msg,url,req_type)
 		 
 		}else{
 		    //log.Printf("cached : %s %v", url,msg)	    
