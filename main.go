@@ -31,6 +31,9 @@ var server_list []string
 var server_ind int
 var   default_ttl  float64 
 
+var oversea_server_list []string
+var oversea_server_ind int
+
 type DnsCache struct {
 	ttl  time.Time
 	req_type byte
@@ -65,16 +68,34 @@ func main() {
 
 	g_pos.Num = 0 
 
-    	log.Printf(" listen on port : %d", *port)
+    	log.Printf("listen on port : %d", *port)
 	
 	server_list = strings.Split(*domserver,",")
 	server_ind = 0
 
 	for i := 0; i < len(server_list); i++ {
-    	log.Printf("dns server : %s", server_list[i])
+    	log.Printf("domestic dns server : %s", server_list[i])
     }
 
-    log.Printf("oversea dns server : %s", *dohserver)
+
+    //log.Printf("over dns server : %s", *dohserver)
+  
+    if strings.Contains(*dohserver,",") == true {
+
+		oversea_server_list = strings.Split(*dohserver,",")
+		oversea_server_ind = 0
+
+		for i := 0; i < len(oversea_server_list); i++ {
+	    	log.Printf("oversea dns server : %s", oversea_server_list[i])
+	    }
+
+    }else {
+        log.Printf("oversea dns server : %s", *dohserver)  	
+        oversea_server_list = make([]string, 1)
+        oversea_server_list[0] = *dohserver
+        oversea_server_ind = 0
+    }
+
 
     if (*fallback_mode == true ) {
      log.Printf("fallback is true")
@@ -145,7 +166,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
              if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n])
 			      }else{
-	                  go domestic_query(dohserver, conn, addr, raw[:n] , true)
+	                  go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
 	         	 }
 		  	
 
@@ -169,17 +190,17 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 		} else {
 
 	          if ((is_chn_domain(url,gmap) == true) || (fallback_mode == true)) {
-	             log.Printf("req_type %02d , domestic : %s ", req_type ,url)
+	             //log.Printf("req_type %02d , domestic : %s ", req_type ,url)
 	             go domestic_query(get_next_server(), conn, addr, raw[:n] , false)
 	          }else{
 
 
-	          	 log.Printf("req_type %02d , oversea  : %s ", req_type,url)
+	          	 //log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 			 
                 	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n])
 			}else{
-	                  go domestic_query(dohserver, conn, addr, raw[:n] , true)
+	                  go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
 	         	}
 
 	          }
@@ -194,6 +215,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 	if strings.Contains(domserver,":") == false {
        nstr += ":53"
 	}
+
+	log.Printf("send udp request to %s %s", nstr , get_url(raw[12:]))
 
 	addr, err := net.ResolveUDPAddr("udp", nstr)
 	if err != nil {
@@ -249,6 +272,9 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 	enc := base64.RawURLEncoding.EncodeToString(raw)
 	url := fmt.Sprintf("%s?dns=%s", dohserver, enc)
+
+	log.Printf("send https request to %s %s", dohserver , get_url(raw[12:]))
+
 	r, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Printf("could not create request: %s", err)
@@ -364,4 +390,20 @@ func get_next_server() string {
     return server_list[old_pos]
 }
 
+func get_next_oversea_server() string {
+	max  := len(oversea_server_list)
+    old_pos := oversea_server_ind
+    oversea_server_ind += 1
+    if oversea_server_ind == max{
+    	oversea_server_ind = 0
+    }
+
+    return oversea_server_list[old_pos]
+}
+
+ func deepCopy(s string) string {
+     var sb strings.Builder
+     sb.WriteString(s)
+     return sb.String()
+ }
 
