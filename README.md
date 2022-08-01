@@ -19,7 +19,7 @@ Then you got a dns proxy, which listen on 5353(default), and forward the request
 使用 udp 处理海外 dns 请求
 ./dohproxy -dohserver 8.8.8.8:53
 
-./dohproxy 打印帮助信息
+./dohproxy -h打印帮助信息
 
 
 # install
