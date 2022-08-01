@@ -53,6 +53,7 @@ func main() {
 	domserver := flag.String("innserver", "223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	fallback_mode := flag.Bool("fallback", false, "set fallback mode")
+	cache_enabled:= flag.Bool("cached", false, "set cache mode : experiment!")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
 	flag.Parse()
@@ -110,14 +111,14 @@ func main() {
      default_ttl = float64(*ttl)
 
 
-	if err := newUDPServer(*host, *port, *dohserver ,*fallback_mode); err != nil {
+	if err := newUDPServer(*host, *port, *dohserver ,*fallback_mode , *cache_enabled); err != nil {
 		log.Fatalf("could not listen on %s:%d: %s", *host, *port, err)
 	}
 }
 
 
 
-func newUDPServer(host string, port int, dohserver string, fallback_mode bool) error {
+func newUDPServer(host string, port int, dohserver string, fallback_mode bool , cache_enabled bool) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
 	if err != nil {
 		return err
@@ -141,38 +142,46 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 
         req_type := raw[len(url)+12+3]
 
-        if cache, ok := read_map(get_key(url,req_type)); ok {
-          
-		  du := time.Since(cache.ttl).Seconds() 
-		  if du <=  default_ttl {
+        if cache_enabled == true {
 
-		  	  log.Printf("cached found : %s", url)
-              //update tid
-              cache.msg[0] = raw[0]
-              cache.msg[1] = raw[1]
+	        if cache, ok := read_map(get_key(url,req_type)); ok {
+	          
+			  du := time.Since(cache.ttl).Seconds() 
+			  if du <=  default_ttl {
 
-			  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
-			    log.Printf("could not write cache to local udp connection: %s", err)
+			  	  log.Printf("cached found : %s", url)
+	              //update tid
+	              cache.msg[0] = raw[0]
+	              cache.msg[1] = raw[1]
+
+				  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
+				    log.Printf("could not write cache to local udp connection: %s", err)
+				  }
+				  continue
+
+			  }else{
+			  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
+			  	delete_map(get_key(url,req_type))
+			  	//valid = false
+			  	
+			  	log.Printf("req_type %02d , oversea  : %s ", req_type,url)
+				 
+	            if strings.Contains(dohserver,"https") == true {
+	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
+			        }else{
+				      if cache_enabled == true {
+	                    go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
+	                  }else{
+	                  	go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , false)
+	                  }
+	         	   }
+
+
 			  }
-			  continue
 
-		  }else{
-		  	//log.Printf("ttl expired , detete cached : %s %v ", url, du)
-		  	delete_map(get_key(url,req_type))
-		  	//valid = false
-		  	
-		  	log.Printf("req_type %02d , oversea  : %s ", req_type,url)
-			 
-             if strings.Contains(dohserver,"https") == true {
-	                	go proxy(dohserver, conn, addr, raw[:n])
-			      }else{
-	                  go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
-	         	 }
-		  	
+		    }
 
-		  }
-
-	    }
+	   } //end of cache_enable
 
         //if raw[n-3] == 28 {
     	//do not support ipv6 request
@@ -198,10 +207,14 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool) e
 	          	 //log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 			 
                 	if strings.Contains(dohserver,"https") == true {
-	                	go proxy(dohserver, conn, addr, raw[:n])
-			}else{
-	                  go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
-	         	}
+	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
+			        }else{
+				      if cache_enabled == true {
+	                    go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
+	                  }else{
+	                  	go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , false)
+	                  }
+	         	   }
 
 	          }
 	    }
@@ -269,7 +282,7 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 
 
 
-func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
+func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte , cache_enabled bool) {
 	enc := base64.RawURLEncoding.EncodeToString(raw)
 	url := fmt.Sprintf("%s?dns=%s", dohserver, enc)
 
@@ -308,19 +321,21 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte) {
 	}
 
 
+    if cache_enabled == true {
     
-	url = get_url(raw[12:])
-	req_type := raw[len(url)+12+3]
-	if value, ok := read_map(get_key(url,req_type)); ok {
+		url = get_url(raw[12:])
+		req_type := raw[len(url)+12+3]
+		if value, ok := read_map(get_key(url,req_type)); ok {
 
-		//log.Printf("Should not happen cached : %s", url)
-		if (req_type != value.req_type){
-			add_node(msg,url,req_type)
-		}
-	 
-	}else{
-	    //log.Printf("cached : %s %v", url,msg)	    
-	    add_node(msg,url,req_type)
+			//log.Printf("Should not happen cached : %s", url)
+			if (req_type != value.req_type){
+				add_node(msg,url,req_type)
+			}
+		 
+		}else{
+		    //log.Printf("cached : %s %v", url,msg)	    
+		    add_node(msg,url,req_type)
+	    }
     }
 
 }
