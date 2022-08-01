@@ -46,7 +46,7 @@ var g_buffer map[string]DnsCache
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
 	port := flag.Int("port", 5353, "dns port to listen on")
-	ttl := flag.Int("ttl", 3600, "default oversea ttl length")
+	ttl := flag.Int("ttl", 1800, "default oversea ttl length")
 	//dohserver := flag.String("dohserver", "https://mozilla.cloudflare-dns.com/dns-query", "DNS Over HTTPS server address")
 	dohserver := flag.String("dohserver", "https://8.8.8.8/dns-query", "DNS Over HTTPS server address")
 	
@@ -161,6 +161,14 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
 				    log.Printf("could not write cache to local udp connection: %s", err)
 				  }
+
+				  // update cache...
+				  if strings.Contains(dohserver,"https") == true {
+	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
+			        }else{
+			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
+	         	   }
+
 				  continue
 
 			  }else{
@@ -168,13 +176,15 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 			  	delete_map(get_key(url,req_type))
 			  	//valid = false
 			  	
-			  	log.Printf("req_type %02d , oversea  : %s ", req_type,url)
+			  	//log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 				 
 	            	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
 			        }else{
 			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
 	         	   }
+
+	         	continue
 
 
 			  }
@@ -260,22 +270,22 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 
 	if cache_flag == true {
 
-	url := get_url(raw[12:])
-	req_type := raw[len(url)+12+3]
+		url := get_url(raw[12:])
+		req_type := raw[len(url)+12+3]
 
-	if _ , ok := read_map(get_key(url,req_type)); ok {
+		if _ , ok := read_map(get_key(url,req_type)); ok {
 
-		log.Printf("updating cache for  : %s", url)
- 
-        //delete old node first
-		delete_map(get_key(url,req_type))
-
-		add_node(remoteBuf,url,req_type)
+			log.Printf("updating cache for  : %s", url)
 	 
-	}else{
-	    //log.Printf("cached : %s %v", url,msg)	    
-	    add_node(remoteBuf,url,req_type)
-    }
+	        //delete old node first
+			delete_map(get_key(url,req_type))
+
+			add_node(remoteBuf,url,req_type)
+		 
+		}else{
+		    //log.Printf("cached : %s %v", url,msg)	    
+		    add_node(remoteBuf,url,req_type)
+	    }
    } //end of cache_flag
 
 }
