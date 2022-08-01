@@ -58,22 +58,76 @@ func format_domain_name(s string) string{
     return str
    }
    
-     //if count2 == 2 {
-        //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog") || strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")  {
-       //     nstr := strings.Split(str,".")
-       //     return nstr[1]+"."+nstr[2]
-        //}
-     //}
+     if count2 == 2 {
+        if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog") || strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")  {
+            nstr := strings.Split(str,".")
+            return nstr[1]+"."+nstr[2]
+        }
+     }
 
-     //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
+     if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
              nstr := strings.Split(str,".")
              //return strings.Join(nstr[1:],".")
              size := len(nstr)
              return strings.Join(nstr[(size-2):],".")
 
-      //}
-      //return str
+      }
+      return str
 }
+
+
+// func is_chn_domain(nurl string, m map[string]int ) bool{
+
+//   url := strings.TrimSpace(nurl) 
+  
+//   if 1 == m[format_domain_name(url)]{
+//     return true
+//   }
+
+//    if strings.HasSuffix(url,".cn") || strings.HasSuffix(url,".qq.com") || strings.HasSuffix(url,".baidu.com")  {
+//     return true
+//    }
+
+//   if  strings.Contains(url,".cn.") {
+//     return true
+//   }
+
+//   return false
+// }
+
+
+// func format_domain_name(s string) string{
+
+//    str := strings.Trim(s, " ")
+     
+//     count2 := strings.Count(str,".")
+
+//    if count2 <= 1 {
+//     return str
+//    }
+   
+//      if count2 == 2 {
+//         //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog") || strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")  {
+//             nstr := strings.Split(str,".")
+//             return nstr[1]+"."+nstr[2]
+//         //}
+//      }
+
+//      //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
+//              nstr := strings.Split(str,".")
+//              //return strings.Join(nstr[1:],".")
+//              size := len(nstr)
+//              if len(nstr[size - 1]) == 3 {
+//                return strings.Join(nstr[(size-2):],".")
+//              }else {
+
+//              // end with countru code
+//              return strings.Join(nstr[(size-3):],".")
+//             }
+
+//       //}
+//       //return str
+// }
 
 
 

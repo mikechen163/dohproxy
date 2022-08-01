@@ -131,16 +131,20 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 			log.Printf("could not read: %s", err)
 			continue
 		}
-		//log.Printf("new connection from %s:%d", addr.IP.String(), addr.Port)
 		
 		url := get_url(raw[12:])
         if len(url) == 0 {
         	continue
         }
 
-        //log.Printf("url : %s", url)
-
+    
         req_type := raw[len(url)+12+3]
+
+         if req_type == 12 {
+        	continue
+        }
+
+       // log.Printf("new connection from %s:%d , %s %d ", addr.IP.String(), addr.Port,url,req_type)
 
         if cache_enabled == true {
 
@@ -166,14 +170,10 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 			  	
 			  	log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 				 
-	            if strings.Contains(dohserver,"https") == true {
+	            	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
 			        }else{
-				      if cache_enabled == true {
-	                    go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
-	                  }else{
-	                  	go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , false)
-	                  }
+			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
 	         	   }
 
 
@@ -209,11 +209,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
                 	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
 			        }else{
-				      if cache_enabled == true {
-	                    go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , true)
-	                  }else{
-	                  	go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , false)
-	                  }
+			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
 	         	   }
 
 	          }
@@ -259,6 +255,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		log.Printf("could not write to local connection: %v", err)
 		return
 	}
+
+	//log.Printf("Receive succ resp from : %s %s", nstr , get_url(raw[12:]))
 
 	if cache_flag == true {
 
