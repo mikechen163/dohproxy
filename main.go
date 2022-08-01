@@ -53,7 +53,7 @@ func main() {
 	domserver := flag.String("innserver", "223.5.5.5,119.29.29.29", "Domestic Dns server address")
 	debug := flag.Bool("debug", false, "print debug logs")
 	fallback_mode := flag.Bool("fallback", false, "set fallback mode")
-	cache_enabled:= flag.Bool("cached", false, "set cache mode : experiment!")
+	cache_enabled:= flag.Bool("cached", true, "set cache mode : experiment!")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
 	flag.Parse()
@@ -161,35 +161,8 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
 				    log.Printf("could not write cache to local udp connection: %s", err)
 				  }
-
-				  // update cache...
-				  if strings.Contains(dohserver,"https") == true {
-	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
-			        }else{
-			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
-	         	   }
-
-				  continue
-
-			  }else{
-			  	log.Printf("ttl expired , detete cached : %s %v ", url, du)
-			  	delete_map(get_key(url,req_type))
-			  	//valid = false
-			  	
-			  	//log.Printf("req_type %02d , oversea  : %s ", req_type,url)
-				 
-	            	if strings.Contains(dohserver,"https") == true {
-	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
-			        }else{
-			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
-	         	   }
-
-	         	continue
-
-
-			  }
-
-		    }
+			  } //ttl valie
+		    }  // cached found
 
 	   } //end of cache_enable
 
@@ -273,19 +246,11 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		url := get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
 
-		if _ , ok := read_map(get_key(url,req_type)); ok {
-
-			log.Printf("updating cache for  : %s", url)
-	 
-	        //delete old node first
+		if _ , ok := read_map(get_key(url,req_type)); ok {	
 			delete_map(get_key(url,req_type))
+	     }		
 
-			add_node(remoteBuf,url,req_type)
-		 
-		}else{
-		    //log.Printf("cached : %s %v", url,msg)	    
-		    add_node(remoteBuf,url,req_type)
-	    }
+	    add_node(remoteBuf,url,req_type)
    } //end of cache_flag
 
 }
@@ -335,22 +300,14 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte , 
     
 		url = get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
-		if _, ok := read_map(get_key(url,req_type)); ok {
 
-			//log.Printf("Should not happen cached : %s", url)
-			log.Printf("updating cache for  : %s", url)
-		     
+        if _ , ok := read_map(get_key(url,req_type)); ok {	
+			delete_map(get_key(url,req_type))
+	     }		
 
-			 //delete old node first
-		     delete_map(get_key(url,req_type))
-
-		      add_node(msg,url,req_type)
-		 
-		}else{
-		    //log.Printf("cached : %s %v", url,msg)	    
-		    add_node(msg,url,req_type)
-	    }
-    }
+	    add_node(msg,url,req_type)
+		
+    }  
 
 }
 
