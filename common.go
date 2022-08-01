@@ -58,21 +58,21 @@ func format_domain_name(s string) string{
     return str
    }
    
-     if count2 == 2 {
-        if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog") || strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")  {
-            nstr := strings.Split(str,".")
-            return nstr[1]+"."+nstr[2]
-        }
-     }
+     //if count2 == 2 {
+        //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog") || strings.HasSuffix(str,"com") || strings.HasSuffix(str,"net")  {
+       //     nstr := strings.Split(str,".")
+       //     return nstr[1]+"."+nstr[2]
+        //}
+     //}
 
-     if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
+     //if strings.HasPrefix(str,"www") || strings.HasPrefix(str,"blog.") || strings.HasSuffix(str,".com") || strings.HasSuffix(str,".net")   {
              nstr := strings.Split(str,".")
              //return strings.Join(nstr[1:],".")
              size := len(nstr)
              return strings.Join(nstr[(size-2):],".")
 
-      }
-      return str
+      //}
+      //return str
 }
 
 
