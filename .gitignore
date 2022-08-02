@@ -7,3 +7,4 @@ run.log
 .ig*
 .go*
 dist/
+pkg/
