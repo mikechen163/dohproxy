@@ -2,3 +2,8 @@ dohproxy
 dohproxy.*
 mydoh
 run.log
+._*
+
+.ig*
+.go*
+dist/
