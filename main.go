@@ -140,9 +140,9 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
     
         req_type := raw[len(url)+12+3]
 
-         if req_type == 12 {
-        	continue
-        }
+        //  if req_type == 12 {
+        // 	continue
+        // }
 
        // log.Printf("new connection from %s:%d , %s %d ", addr.IP.String(), addr.Port,url,req_type)
 
@@ -183,7 +183,11 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 
 	          if ((is_chn_domain(url,gmap) == true) || (fallback_mode == true)) {
 	             //log.Printf("req_type %02d , domestic : %s ", req_type ,url)
-	             go domestic_query(get_next_server(), conn, addr, raw[:n] , false)
+	                         
+	             for i := 0; i < len(server_list); i++ {
+	             	go domestic_query(get_next_server(), conn, addr, raw[:n] , false)
+    	         }
+
 	          }else{
 
 
