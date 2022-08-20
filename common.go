@@ -36,12 +36,16 @@ func is_chn_domain(nurl string, m map[string]int ) bool{
     return true
   }
 
-  if strings.HasSuffix(url,".cn") || strings.HasSuffix(url,".qq.com") || strings.HasSuffix(url,".baidu.com")  {
-    return true
-  }
+  // if strings.HasSuffix(url,".cn") || strings.HasSuffix(url,".qq.com") || strings.HasSuffix(url,".baidu.com")  {
+  //   return true
+  // }
 
-  if  strings.Contains(url,"mzstatic.com") ||  strings.Contains(url,".cn.") {
-    return true
+  // if  strings.Contains(url,"mzstatic.com") ||  strings.Contains(url,".cn.") {
+  //   return true
+  // }
+  
+  if strings.HasSuffix(url,".cn") || strings.HasPrefix(url,"cn.") ||  strings.Contains(url,".cn.") {
+   return true
   }
 
   return false
