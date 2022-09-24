@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"strings"
+	"encoding/binary"
 
 	//"common"
 )
@@ -42,6 +43,8 @@ type DnsCache struct {
 
 var rwLock *sync.RWMutex 
 var g_buffer map[string]DnsCache
+
+//var g_tcp_conn_pool[]Conn
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
@@ -95,6 +98,30 @@ func main() {
         oversea_server_list = make([]string, 1)
         oversea_server_list[0] = *dohserver
         oversea_server_ind = 0
+
+   
+       //  if strings.Contains(*dohserver , "tcp") {
+
+	      //   g_tcp_conn_pool[] = make([]Conn, 1)
+
+	      //   servAddr := *dohserver
+	      //   tcpAddr, err := net.ResolveTCPAddr("tcp", servAddr)
+	      //   if err != nil {
+	      //      log.Printf("ResolveTCPAddr failed: %s", err.Error())
+	      //     os.Exit(1)
+	      //   }
+
+	      //   conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	      //  if err != nil {
+	      //     log.Printf("Dial failed: %s", err.Error())
+	      //     os.Exit(1)
+	      //  }
+	      //  defer conn.Close()
+
+	      //   g_tcp_conn_pool[0] = conn
+
+	      //   log.Printf("Connect tcp to %s success",*dohserver)
+       // } // end of tcp
     }
 
 
@@ -196,12 +223,82 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
                 	if strings.Contains(dohserver,"https") == true {
 	                	go proxy(dohserver, conn, addr, raw[:n] , cache_enabled)
 			        }else{
-			          go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
+
+			          if strings.Contains(dohserver,"tcp") == true {
+			          	go tcp_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
+			          }else{
+			            go domestic_query(get_next_oversea_server(), conn, addr, raw[:n] , cache_enabled)
+			          }
 	         	   }
 
 	          }
 	    }
 	} //end for
+}
+
+func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
+
+    //log.Printf("%v", raw)
+    nstr := domserver
+	if strings.Contains(domserver,"tcp") == false {
+       return 
+	}
+
+	log.Printf("send tcp request to %s %s", nstr , get_url(raw[12:]))
+
+	addr, err := net.ResolveTCPAddr("tcp", nstr[6:])
+	if err != nil {
+		log.Printf("Can't resolve address: %s %v", nstr[6:], err)
+		return
+	}
+
+	cliConn, err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		log.Printf("Can't dial: %s %v", nstr,err)
+		return
+	}
+	defer cliConn.Close()
+
+	// todo set timeout
+	
+	nb := make([]byte, len(raw)+2)
+	binary.BigEndian.PutUint16(nb, uint16(len(raw)))
+	copy(nb[2:], raw)
+
+	_, err = cliConn.Write(nb)
+	if err != nil {
+       log.Printf("write to server fail: %s %v", nstr,err)
+		return
+    }
+
+	remoteBuf := get_next_buff()
+
+	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, err = cliConn.Read(remoteBuf)
+	if err != nil {
+		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
+		return
+	}
+
+	if _, err := conn.WriteToUDP(remoteBuf[2:], Remoteaddr); err != nil {
+		log.Printf("could not write to local connection: %v", err)
+		return
+	}
+
+	//log.Printf("Receive succ resp from : %s %s", nstr , get_url(raw[12:]))
+
+	if cache_flag == true {
+
+		url := get_url(raw[12:])
+		req_type := raw[len(url)+12+3]
+
+		if _ , ok := read_map(get_key(url,req_type)); ok {	
+			delete_map(get_key(url,req_type))
+	     }		
+
+	    add_node(remoteBuf[2:],url,req_type)
+   } //end of cache_flag
+
 }
 
 func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
