@@ -42,9 +42,16 @@ type DnsCache struct {
 }
 
 var rwLock *sync.RWMutex 
+var tcpLock *sync.RWMutex 
 var g_buffer map[string]DnsCache
 
-//var g_tcp_conn_pool[]Conn
+
+type TcpConnPool struct {
+	timer *time.Timer
+	conn *net.TCPConn
+}
+var g_tcp_conn_pool map[string]TcpConnPool
+var g_dns_context_id map[uint16]*net.UDPAddr
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
@@ -124,6 +131,9 @@ func main() {
        // } // end of tcp
     }
 
+    g_tcp_conn_pool = make(map[string]TcpConnPool)
+    g_dns_context_id = make(map[uint16]*net.UDPAddr)
+
 
     if (*fallback_mode == true ) {
      log.Printf("fallback is true")
@@ -134,6 +144,7 @@ func main() {
     }
 
      rwLock = new(sync.RWMutex)
+     tcpLock = new(sync.RWMutex)
      g_buffer = make(map[string]DnsCache)
      default_ttl = float64(*ttl)
 
@@ -236,6 +247,87 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 	} //end for
 }
 
+//find any available tcp connection in pool
+func get_available_conn(nstr string)(TcpConnPool, bool) {
+
+	var tt TcpConnPool 
+
+    tcpLock.Lock()
+	for _, v := range g_tcp_conn_pool {
+		//log.Printf("traval all map k = %s , v = %s , nstr = %s  ",  k, v.conn.RemoteAddr().String(), nstr)
+        if (nstr == v.conn.RemoteAddr().String()) {
+        	tcpLock.Unlock()
+        	return v,true
+        }
+  
+    }
+
+    tcpLock.Unlock()
+    return tt,false
+}
+
+func start_timer(timer *time.Timer , conn *net.TCPConn){
+         <- timer.C
+    	
+        //log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
+        
+        tcpLock.Lock()
+        conn.Close()
+        delete(g_tcp_conn_pool,conn.LocalAddr().String())
+        tcpLock.Unlock()
+}
+
+func get_conn(domserver string) (*net.TCPConn, error) {
+
+  var ele TcpConnPool
+
+  nstr := domserver[6:]
+
+  //first time
+  //
+  
+
+  //tcpLock.Lock()
+
+ // nele , ok := g_tcp_conn_pool[nstr]
+ // 
+  nele , ok := get_available_conn(nstr)
+  if (ok){
+  	 //log.Printf("reuse socket: %s <-> %s ",  nele.conn.LocalAddr().String(), nele.conn.RemoteAddr().String())
+     nele.timer.Reset(2 * time.Second)
+    return nele.conn , nil
+  }else {
+
+    addr, err := net.ResolveTCPAddr("tcp", nstr)
+	if err != nil {
+		log.Printf("Can't resolve address: %s %v", nstr, err)
+		return nil,err
+	}
+
+	cliConn, err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		log.Printf("Can't dial: %s %v", nstr,err)
+		return nil,err
+	}
+
+	ele.timer = time.NewTimer(2 * time.Second)
+    ele.conn = cliConn
+
+    
+    g_tcp_conn_pool[ele.conn.LocalAddr().String()] = ele
+    //tcpLock.Unlock()
+
+    //log.Printf("create socket: %s <-> %s ",  ele.conn.LocalAddr().String(), ele.conn.RemoteAddr().String())
+
+    go start_timer(ele.timer,cliConn)
+   	return cliConn,nil
+ 
+  } //else
+
+  return nil,nil
+
+}
+
 func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
 
     //log.Printf("%v", raw)
@@ -244,23 +336,37 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
        return 
 	}
 
-	log.Printf("send tcp request to %s %s", nstr , get_url(raw[12:]))
+	//log.Printf("send tcp request to %s %s", nstr , get_url(raw[12:]))
 
-	addr, err := net.ResolveTCPAddr("tcp", nstr[6:])
-	if err != nil {
-		log.Printf("Can't resolve address: %s %v", nstr[6:], err)
-		return
-	}
+	// addr, err := net.ResolveTCPAddr("tcp", nstr[6:])
+	// if err != nil {
+	// 	log.Printf("Can't resolve address: %s %v", nstr[6:], err)
+	// 	return
+	// }
 
-	cliConn, err := net.DialTCP("tcp", nil, addr)
-	if err != nil {
-		log.Printf("Can't dial: %s %v", nstr,err)
-		return
-	}
-	defer cliConn.Close()
+	// cliConn, err := net.DialTCP("tcp", nil, addr)
+	// if err != nil {
+	// 	log.Printf("Can't dial: %s %v", nstr,err)
+	// 	return
+	// }
+	// defer cliConn.Close()
 
 	// todo set timeout
 	
+
+	cliConn ,err := get_conn(domserver)
+	if (err != nil){
+		 log.Printf("get_conn fail: %s %v", domserver,err)
+		return
+
+	}
+
+
+	
+	tag  := binary.BigEndian.Uint16(raw[:2])
+	g_dns_context_id[tag] = Remoteaddr
+	//log.Printf("context id : %d",tag)
+
 	nb := make([]byte, len(raw)+2)
 	binary.BigEndian.PutUint16(nb, uint16(len(raw)))
 	copy(nb[2:], raw)
@@ -268,22 +374,71 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 	_, err = cliConn.Write(nb)
 	if err != nil {
        log.Printf("write to server fail: %s %v", nstr,err)
+
+
+        tcpLock.Lock()
+        cliConn.Close()
+        delete(g_tcp_conn_pool,cliConn.LocalAddr().String())
+        tcpLock.Unlock()
+
 		return
     }
 
 	remoteBuf := get_next_buff()
 
 	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, err = cliConn.Read(remoteBuf)
+	size, err := cliConn.Read(remoteBuf)
 	if err != nil {
 		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
+
+
+		tcpLock.Lock()
+        cliConn.Close()
+        delete(g_tcp_conn_pool,cliConn.LocalAddr().String())
+        tcpLock.Unlock()
+
 		return
 	}
+
+   
+    size_2 := binary.BigEndian.Uint16(remoteBuf[:2])
+
+    if (size != int(size_2 + 2 )) {
+       log.Printf("Warning resp msg size not equal  : %d <=> %d",size,size_2)
+    }
+
+	tag2  := binary.BigEndian.Uint16(remoteBuf[2:4])
+    //log.Printf("context id : %d",tag2)
+   
+    if (tag != tag2) {
+    	//log.Printf("resp context id not equal : %d <=> %d",tag,tag2)
+
+    	ra , ok := g_dns_context_id[tag2]
+
+    	if (ok) {
+
+    		
+	    	if _, err := conn.WriteToUDP(remoteBuf[2:], ra); err != nil {
+			log.Printf("could not write to local connection: %v", err)
+			return
+		    }
+
+		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
+
+		    delete (g_dns_context_id,tag2)
+	    }
+    	return
+    } 
+
+
+   delete (g_dns_context_id,tag)
 
 	if _, err := conn.WriteToUDP(remoteBuf[2:], Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
 		return
 	}
+
+	log.Printf("normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
 
 	//log.Printf("Receive succ resp from : %s %s", nstr , get_url(raw[12:]))
 
