@@ -252,17 +252,17 @@ func get_available_conn(nstr string)(TcpConnPool, bool) {
 
 	var tt TcpConnPool 
 
-    tcpLock.Lock()
+    //tcpLock.Lock()
 	for _, v := range g_tcp_conn_pool {
 		//log.Printf("traval all map k = %s , v = %s , nstr = %s  ",  k, v.conn.RemoteAddr().String(), nstr)
         if (nstr == v.conn.RemoteAddr().String()) {
-        	tcpLock.Unlock()
+        	//tcpLock.Unlock()
         	return v,true
         }
   
     }
 
-    tcpLock.Unlock()
+    //tcpLock.Unlock()
     return tt,false
 }
 
@@ -317,8 +317,9 @@ func get_conn(domserver string) (*net.TCPConn, error) {
 	ele.timer = time.NewTimer(2 * time.Second)
     ele.conn = cliConn
 
-    
+    tcpLock.Lock()
     g_tcp_conn_pool[get_tcpconn_key(ele.conn)] = ele
+    tcpLock.Unlock()
     //tcpLock.Unlock()
 
     //log.Printf("create socket: %s <-> %s ",  ele.conn.LocalAddr().String(), ele.conn.RemoteAddr().String())
@@ -419,7 +420,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
     if (tag != tag2) {
     	//log.Printf("resp context id not equal : %d <=> %d",tag,tag2)
 
+        //tcpLock.Lock()
     	ra , ok := g_dns_context_id[tag2]
+    	//tcpLock.Unlock()
 
     	if (ok) {
 
@@ -431,7 +434,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
 
+            tcpLock.Lock()
 		    delete (g_dns_context_id,tag2)
+		    tcpLock.Unlock()
 	    }
     	return
     } 
