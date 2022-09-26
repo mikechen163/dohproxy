@@ -254,6 +254,10 @@ func reset_tcp_conn( conn *net.TCPConn){
 
 	    //ele := g_tcp_conn_pool[get_tcpconn_key(conn)]
 
+        if (false == tcp_reuse_flag) {
+           return
+        }
+
         tcpLock.Lock()
         delete(g_tcp_conn_pool,get_tcpconn_key(conn))
         tcpLock.Unlock()
@@ -413,9 +417,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
 
-            // tcpLock.Lock()
-		    // delete (g_dns_context_id,tag2)
-		    // tcpLock.Unlock()
+             tcpLock.Lock()
+		     delete (g_dns_context_id,tag2)
+		     tcpLock.Unlock()
 	    }
     	return
     } 
