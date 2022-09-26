@@ -368,7 +368,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 	
 	tag  := binary.BigEndian.Uint16(raw[:2])
+	tcpLock.Lock()
 	g_dns_context_id[tag] = Remoteaddr
+	tcpLock.Unlock()
 	//log.Printf("context id : %d",tag)
 
 	nb := make([]byte, len(raw)+2)
@@ -434,8 +436,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
     	return
     } 
 
-
+   tcpLock.Lock()
    delete (g_dns_context_id,tag)
+   tcpLock.Unlock()
 
 	if _, err := conn.WriteToUDP(remoteBuf[2:], Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
