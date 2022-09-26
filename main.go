@@ -276,9 +276,10 @@ func start_timer(timer *time.Timer , conn *net.TCPConn){
         //log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
         
         tcpLock.Lock()
-        conn.Close()
         delete(g_tcp_conn_pool,get_tcpconn_key(conn))
         tcpLock.Unlock()
+
+        conn.Close()
 }
 
 func get_conn(domserver string) (*net.TCPConn, error) {
@@ -384,9 +385,10 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 
         tcpLock.Lock()
-        cliConn.Close()
         delete(g_tcp_conn_pool,get_tcpconn_key(cliConn))
         tcpLock.Unlock()
+        cliConn.Close()
+
 
 		return
     }
@@ -400,9 +402,10 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 
 		tcpLock.Lock()
-        cliConn.Close()
         delete(g_tcp_conn_pool,get_tcpconn_key(cliConn))
         tcpLock.Unlock()
+
+        cliConn.Close()
 
 		return
 	}
