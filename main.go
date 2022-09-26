@@ -266,6 +266,10 @@ func get_available_conn(nstr string)(TcpConnPool, bool) {
     return tt,false
 }
 
+func get_tcpconn_key(conn *net.TCPConn)(string){
+	return conn.LocalAddr().String() + conn.RemoteAddr().String()
+}
+
 func start_timer(timer *time.Timer , conn *net.TCPConn){
          <- timer.C
     	
@@ -273,7 +277,7 @@ func start_timer(timer *time.Timer , conn *net.TCPConn){
         
         tcpLock.Lock()
         conn.Close()
-        delete(g_tcp_conn_pool,conn.LocalAddr().String())
+        delete(g_tcp_conn_pool,get_tcpconn_key(conn))
         tcpLock.Unlock()
 }
 
@@ -314,7 +318,7 @@ func get_conn(domserver string) (*net.TCPConn, error) {
     ele.conn = cliConn
 
     
-    g_tcp_conn_pool[ele.conn.LocalAddr().String()] = ele
+    g_tcp_conn_pool[get_tcpconn_key(ele.conn)] = ele
     //tcpLock.Unlock()
 
     //log.Printf("create socket: %s <-> %s ",  ele.conn.LocalAddr().String(), ele.conn.RemoteAddr().String())
@@ -378,7 +382,7 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
         tcpLock.Lock()
         cliConn.Close()
-        delete(g_tcp_conn_pool,cliConn.LocalAddr().String())
+        delete(g_tcp_conn_pool,get_tcpconn_key(cliConn))
         tcpLock.Unlock()
 
 		return
@@ -394,7 +398,7 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
 		tcpLock.Lock()
         cliConn.Close()
-        delete(g_tcp_conn_pool,cliConn.LocalAddr().String())
+        delete(g_tcp_conn_pool,get_tcpconn_key(cliConn))
         tcpLock.Unlock()
 
 		return
