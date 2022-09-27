@@ -15,7 +15,7 @@ import (
 
 	//"common"
 )
-const MAX_BUFF int = 300
+const MAX_BUFF int = 1000
 const BUFF_SIZE int = 512
 
 
@@ -50,8 +50,14 @@ type TcpConnPool struct {
 	timer *time.Timer
 	conn *net.TCPConn
 }
+
+type UdpConnPool struct {
+	conn *net.UDPConn
+	addr *net.UDPAddr
+}
+
 var g_tcp_conn_pool map[string]TcpConnPool
-var g_dns_context_id map[uint16]*net.UDPAddr
+var g_dns_context_id map[uint16]UdpConnPool
 var tcp_reuse_flag bool
 
 func main() {
@@ -110,7 +116,7 @@ func main() {
     }
 
     g_tcp_conn_pool = make(map[string]TcpConnPool)
-    g_dns_context_id = make(map[uint16]*net.UDPAddr)
+    g_dns_context_id = make(map[uint16]UdpConnPool)
 
 
     if (*fallback_mode == true ) {
@@ -232,6 +238,8 @@ func get_available_conn(nstr string)(TcpConnPool, bool) {
 
 	var tt TcpConnPool 
 
+	//log.Printf("get_tcp_conn,tcp_pool_size = %d, dns_context_size = %d ", len(g_tcp_conn_pool), len(g_dns_context_id))
+     
     //tcpLock.Lock()
 	for _, v := range g_tcp_conn_pool {
 		//log.Printf("traval all map k = %s , v = %s , nstr = %s  ",  k, v.conn.RemoteAddr().String(), nstr)
@@ -272,12 +280,14 @@ func start_timer(timer *time.Timer , conn *net.TCPConn){
         //log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
         
         reset_tcp_conn(conn)
+
+        //log.Printf("tcp_pool_size = %d, dns_context_size = %d ", len(g_tcp_conn_pool), len(g_dns_context_id))
         
         //clear g_dns_context_id for resource check
-        if ( (len(g_tcp_conn_pool) == 0 ) && ( len(g_dns_context_id) > 0 ) ) {
+        if ( (len(g_tcp_conn_pool) == 0 ) && ( len(g_dns_context_id) > 100 ) ) {
 
         	log.Printf("reset dns_context_map,length = %d ",  len(g_dns_context_id))
-            g_dns_context_id = make(map[uint16]*net.UDPAddr)
+            g_dns_context_id = make(map[uint16]UdpConnPool)
            
         }
 }
@@ -325,11 +335,80 @@ func get_conn(domserver string) (*net.TCPConn) {
 
 }
 
+func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net.UDPConn, Remoteaddr *net.UDPAddr, url string, req_type byte, cache_flag bool){
+
+	tag2  := binary.BigEndian.Uint16(buf[:2])
+    //log.Printf("context id : %d",tag2)
+   
+    if (tag != tag2) {
+        //tcpLock.Lock()
+    	ra , ok := g_dns_context_id[tag2]
+    	//tcpLock.Unlock()
+
+    	if (ok) {
+
+        	if _, err := ra.conn.WriteToUDP(buf, ra.addr); err != nil {
+			log.Printf("could not write to local connection: %v", err)
+			return
+		    }
+
+		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
+
+		    if cache_flag == true {
+				
+				if _ , ok := read_map(get_key(url,req_type)); ok {	
+					delete_map(get_key(url,req_type))
+			     }		
+
+			    add_node(buf,url,req_type)
+		    } //end of cache_flag
+
+             tcpLock.Lock()
+		     delete (g_dns_context_id,tag2)
+		     tcpLock.Unlock()
+	    }else{
+	    	log.Printf("Out-order dns no context found: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
+	    }
+    	return
+    } 
+
+    //this is the normal case
+
+   //ele := g_dns_context_id[tag]
+
+	if _, err := conn.WriteToUDP(buf, Remoteaddr); err != nil {
+		log.Printf("could not write to local connection: %v", err)
+		return
+	}
+
+   tcpLock.Lock()
+   delete (g_dns_context_id,tag)
+   tcpLock.Unlock()
+
+    log.Printf("Normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
+
+	if cache_flag == true {
+
+	
+
+		if _ , ok := read_map(get_key(url,req_type)); ok {	
+			delete_map(get_key(url,req_type))
+	     }		
+
+	    add_node(buf,url,req_type)
+   } //end of cache_flag
+  
+}
+
 func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
 
     
     var cliConn *net.TCPConn
     var err error
+    var step uint16
+    var ele UdpConnPool
+    var remoteBuf []byte
+    var size int
 
     //log.Printf("%v", raw)
     nstr := domserver
@@ -365,7 +444,9 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
     		
 	tag  := binary.BigEndian.Uint16(raw[:2])
 	tcpLock.Lock()
-	g_dns_context_id[tag] = Remoteaddr
+	ele.conn = conn
+	ele.addr = Remoteaddr
+	g_dns_context_id[tag] = ele
 	tcpLock.Unlock()
 	//log.Printf("context id : %d",tag)
 
@@ -380,75 +461,63 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 		return
     }
 
-	remoteBuf := get_next_buff()
+	temp_buf := get_next_buff()
 
 	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	size, err := cliConn.Read(remoteBuf)
+	size_t, err := cliConn.Read(temp_buf)
 	if err != nil {
 		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
         reset_tcp_conn(cliConn)
 		return
 	}
 
-   
-    size_2 := binary.BigEndian.Uint16(remoteBuf[:2])
+	remoteBuf = temp_buf
+	size = size_t
 
-    if (size != int(size_2 + 2 )) {
-       log.Printf("Warning resp msg size not equal  : %d <=> %d",size,size_2)
-    }
+	if (BUFF_SIZE == size) {
+		    log.Printf("Rsp size bigger than 512: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),get_url(raw[12:]))
+          
+            buf_t := make([]byte,3*BUFF_SIZE) 
+            //copy(remoteBuf,temp_buf)
 
-	tag2  := binary.BigEndian.Uint16(remoteBuf[2:4])
-    //log.Printf("context id : %d",tag2)
-   
-    if (tag != tag2) {
-    	//log.Printf("resp context id not equal : %d <=> %d",tag,tag2)
-
-        //tcpLock.Lock()
-    	ra , ok := g_dns_context_id[tag2]
-    	//tcpLock.Unlock()
-
-    	if (ok) {
-
-    		
-	    	if _, err := conn.WriteToUDP(remoteBuf[2:], ra); err != nil {
-			log.Printf("could not write to local connection: %v", err)
-			return
+	        size_t, err := cliConn.Read(buf_t)
+		    if err != nil {
+				log.Printf("read remote dns server fail: %s %v\n", nstr,err)
+		        reset_tcp_conn(cliConn)
+				return
 		    }
 
-		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
+		    if (size_t == 3*BUFF_SIZE){
+		    	log.Printf("!!!!too big packet, can't handle size = %d \n" , size_t + BUFF_SIZE )
+	            reset_tcp_conn(cliConn)
+			    return
+		    }
 
-             tcpLock.Lock()
-		     delete (g_dns_context_id,tag2)
-		     tcpLock.Unlock()
-	    }
-    	return
-    } 
+		    remoteBuf = make([]byte,4*BUFF_SIZE) 
+		    copy(remoteBuf,temp_buf)
+		    copy(remoteBuf[BUFF_SIZE:],buf_t)
 
-   tcpLock.Lock()
-   delete (g_dns_context_id,tag)
-   tcpLock.Unlock()
-
-	if _, err := conn.WriteToUDP(remoteBuf[2:], Remoteaddr); err != nil {
-		log.Printf("could not write to local connection: %v", err)
-		return
+		    size = size_t + BUFF_SIZE
 	}
 
-	log.Printf("normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),nstr,get_url(raw[12:]))
-
-	//log.Printf("Receive succ resp from : %s %s", nstr , get_url(raw[12:]))
-
-	if cache_flag == true {
-
-		url := get_url(raw[12:])
+	
+   
+    step = 0
+    for {
+    	
+	    size_2 := binary.BigEndian.Uint16(remoteBuf[(step):(2+step)])
+        
+        //log.Printf("buf_size = %d, rsp size = %d, step = %d , buf=[%d:%d]",size,size_2,step,2+step,size_2 + 2 + step)
+	    url := get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
+   	    handle_dns_response(remoteBuf[(2+step):(size_2 + 2 + step)] , tag , cliConn,conn,Remoteaddr,url,req_type,cache_flag )
 
-		if _ , ok := read_map(get_key(url,req_type)); ok {	
-			delete_map(get_key(url,req_type))
-	     }		
-
-	    add_node(remoteBuf[2:],url,req_type)
-   } //end of cache_flag
-
+	    if (size <= int(size_2 + 2 + step)) {
+	    	return
+	    }
+	    step += size_2 + 2
+    }
+    return
 }
 
 func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw []byte , cache_flag bool) {
