@@ -646,9 +646,12 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		return
 	}
 
-	log.Printf("udp succ rsp from %s | %s", nstr , get_url(raw[12:]))
+	
+	//log.Printf("udp succ rsp from %s | %s", nstr , get_url(raw[12:]))
 
 	if cache_flag == true {
+
+		log.Printf("udp succ rsp from %s | %s", nstr , get_url(raw[12:]))
 
 		url := get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
