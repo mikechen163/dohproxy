@@ -397,25 +397,23 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 	tag2  := binary.BigEndian.Uint16(buf[:2])
     //log.Printf("context id : %d",tag2)
    
+    
+    // packet return not in fifo mode. out-of-order. 
     if (tag != tag2) {
         //tcpLock.Lock()
     	ra , ok := g_dns_context_id[tag2]
     	//tcpLock.Unlock()
 
+    	//found context, normal case, keep alive packet will return not found.
     	if (ok) {
 
     		tcpLock.Lock()
 		     delete (g_dns_context_id,tag2)
 		     tcpLock.Unlock()
 
-    		//keep alive connection
-    		if (ra.conn == nil){
-    			return
-    		}
-
-        	if _, err := ra.conn.WriteToUDP(buf, ra.addr); err != nil {
-			log.Printf("could not write to local connection: %v", err)
-			return
+    		if _, err := ra.conn.WriteToUDP(buf, ra.addr); err != nil {
+			  log.Printf("could not write to local connection: %v", err)
+			  return
 		    }
 
 		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
@@ -434,24 +432,25 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 
             
 	    }else{
-	    	log.Printf("Out-order dns no context found: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
+
+	    	//maybe a keep alive response, or context not found mode
+
+	        //keep alive connection
+    		//log.Printf("Out-order dns no context found: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 	    }
     	return
-    } 
+    } // end of tag1 != tag2
 
-    //this is the normal case
-
-   //ele := g_dns_context_id[tag]
-   //
-   
-   tcpLock.Lock()
-   delete (g_dns_context_id,tag)
-   tcpLock.Unlock()
-   
-    //keep alive test packet
+    //this is the normal case, fifo module
+    
+    //keep alive test packet, do nothing
     if (conn == nil) {
     	return
     }
+
+    tcpLock.Lock()
+    delete (g_dns_context_id,tag)
+    tcpLock.Unlock()
 
 	if _, err := conn.WriteToUDP(buf, Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
@@ -461,8 +460,6 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
     log.Printf("Normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 
 	if cache_flag == true {
-
-	
 
 		if _ , ok := read_map(get_key(url,req_type)); ok {	
 			delete_map(get_key(url,req_type))
