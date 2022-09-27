@@ -54,6 +54,8 @@ type TcpConnPool struct {
 type UdpConnPool struct {
 	conn *net.UDPConn
 	addr *net.UDPAddr
+	url string
+	req_type byte
 }
 
 var g_tcp_conn_pool map[string]TcpConnPool
@@ -355,6 +357,9 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 		    log.Printf("Out-order dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 
 		    if cache_flag == true {
+
+		    	 url = ra.url
+		    	 req_type = ra.req_type
 				
 				if _ , ok := read_map(get_key(url,req_type)); ok {	
 					delete_map(get_key(url,req_type))
@@ -446,6 +451,8 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 	tcpLock.Lock()
 	ele.conn = conn
 	ele.addr = Remoteaddr
+	ele.url = get_url(raw[12:])
+	ele.req_type = raw[len(ele.url)+12+3]
 	g_dns_context_id[tag] = ele
 	tcpLock.Unlock()
 	//log.Printf("context id : %d",tag)
