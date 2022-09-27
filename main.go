@@ -17,6 +17,8 @@ import (
 )
 const MAX_BUFF int = 1000
 const BUFF_SIZE int = 512
+//const KEEP_ALIVE_TIME_LEN int = 30
+const KEEP_ALIVE_TIME_LEN time.Duration = 30
 
 
 type SafeInt struct {
@@ -48,6 +50,7 @@ var g_buffer map[string]DnsCache
 
 type TcpConnPool struct {
 	timer *time.Timer
+	ticker *time.Ticker
 	conn *net.TCPConn
 }
 
@@ -61,6 +64,7 @@ type UdpConnPool struct {
 var g_tcp_conn_pool map[string]TcpConnPool
 var g_dns_context_id map[uint16]UdpConnPool
 var tcp_reuse_flag bool
+var g_google_buf []byte
 
 func main() {
 	host := flag.String("host", "localhost", "interface to listen on")
@@ -80,6 +84,9 @@ func main() {
 
 	gmap = get_config(*chn_file,true)
 	g_adwords = get_config(*block_file,false)
+
+	g_google_buf = []byte{0x18,0x6f,0x01,0x20,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0x03,0x77,0x77,0x77,0x06,0x67,0x6f,0x6f,0x67,0x6c,0x65,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x29,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00}
+
 
 	if *debug {
 		log.SetFlags(log.Lshortfile)
@@ -157,7 +164,23 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 			log.Printf("could not read: %s", err)
 			continue
 		}
-		
+
+   //       i := 0
+		 // for _, nx := range(raw[:64]) {
+   //        i += 1
+   //       fmt.Printf("0x%02x,", nx) 
+         
+   //        if (i == 16){
+   //        	i = 0
+   //         fmt.Printf("\n",n)
+   //        }
+
+   //       }
+
+   //       fmt.Printf("%d \n",n)
+
+
+       
 		url := get_url(raw[12:])
         if len(url) == 0 {
         	continue
@@ -273,13 +296,13 @@ func reset_tcp_conn( conn *net.TCPConn){
         tcpLock.Unlock()
 
         conn.Close()
-        //ele.timer.Stop()	
+        //ele.ticker.Stop()	
 }
 
-func start_timer(timer *time.Timer , conn *net.TCPConn){
+func start_timer(timer *time.Timer ,ticker *time.Ticker , conn *net.TCPConn){
          <- timer.C
     	
-        //log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
+        log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
         
         reset_tcp_conn(conn)
 
@@ -292,9 +315,30 @@ func start_timer(timer *time.Timer , conn *net.TCPConn){
             g_dns_context_id = make(map[uint16]UdpConnPool)
            
         }
+
+        ticker.Stop()
 }
 
-func get_conn(domserver string) (*net.TCPConn) {
+func keep_alive(ticker *time.Ticker,conn *net.TCPConn) {
+
+    var counter uint16
+
+    counter = 0;
+
+	for {
+	  <- ticker.C
+      //log.Printf("Ticker , keep_alive socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
+      buf := []byte{0x18,0x6f,0x01,0x20,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0x03,0x77,0x77,0x77,0x06,0x67,0x6f,0x6f,0x67,0x6c,0x65,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x29,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00}
+      
+      counter += 1
+      binary.BigEndian.PutUint16(buf, counter)
+      tcp_query("tcp://" + conn.RemoteAddr().String(), nil, nil,buf, false)
+
+	}//end for
+
+}
+
+func get_conn(domserver string, conn *net.UDPConn) (*net.TCPConn) {
 
   var ele TcpConnPool
 
@@ -302,9 +346,18 @@ func get_conn(domserver string) (*net.TCPConn) {
    nele , ok := get_available_conn(nstr)
   if (ok){
   	 //log.Printf("reuse socket: %s <-> %s ",  nele.conn.LocalAddr().String(), nele.conn.RemoteAddr().String())
-     nele.timer.Reset(2 * time.Second)
+     
+     if (conn != nil){
+      nele.timer.Reset(KEEP_ALIVE_TIME_LEN * time.Second)
+     }
+
     return nele.conn 
   }else {
+   
+    //keep alive ,dont create new sock
+    if (conn == nil) {
+    	return nil
+    } 
 
     addr, err := net.ResolveTCPAddr("tcp", nstr)
 	if err != nil {
@@ -318,7 +371,8 @@ func get_conn(domserver string) (*net.TCPConn) {
 		return nil
 	}
 
-	ele.timer = time.NewTimer(2 * time.Second)
+	ele.timer = time.NewTimer(KEEP_ALIVE_TIME_LEN * time.Second)
+	ele.ticker = time.NewTicker(time.Second)
     ele.conn = cliConn
 
     tcpLock.Lock()
@@ -328,7 +382,8 @@ func get_conn(domserver string) (*net.TCPConn) {
 
     //log.Printf("create socket: %s <-> %s ",  ele.conn.LocalAddr().String(), ele.conn.RemoteAddr().String())
 
-    go start_timer(ele.timer,cliConn)
+    go start_timer(ele.timer,ele.ticker,cliConn)
+    go keep_alive(ele.ticker,cliConn)
    	return cliConn
  
   } //else
@@ -349,6 +404,15 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 
     	if (ok) {
 
+    		tcpLock.Lock()
+		     delete (g_dns_context_id,tag2)
+		     tcpLock.Unlock()
+
+    		//keep alive connection
+    		if (ra.conn == nil){
+    			return
+    		}
+
         	if _, err := ra.conn.WriteToUDP(buf, ra.addr); err != nil {
 			log.Printf("could not write to local connection: %v", err)
 			return
@@ -368,9 +432,7 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 			    add_node(buf,url,req_type)
 		    } //end of cache_flag
 
-             tcpLock.Lock()
-		     delete (g_dns_context_id,tag2)
-		     tcpLock.Unlock()
+            
 	    }else{
 	    	log.Printf("Out-order dns no context found: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 	    }
@@ -380,15 +442,21 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
     //this is the normal case
 
    //ele := g_dns_context_id[tag]
+   //
+   
+   tcpLock.Lock()
+   delete (g_dns_context_id,tag)
+   tcpLock.Unlock()
+   
+    //keep alive test packet
+    if (conn == nil) {
+    	return
+    }
 
 	if _, err := conn.WriteToUDP(buf, Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
 		return
 	}
-
-   tcpLock.Lock()
-   delete (g_dns_context_id,tag)
-   tcpLock.Unlock()
 
     log.Printf("Normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 
@@ -438,8 +506,14 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 		defer cliConn.Close()
     }else{
 
-       cliConn = get_conn(domserver)
+       cliConn = get_conn(domserver,conn)
 	   if (cliConn == nil){
+         
+         //keep alive case, just return
+	   	 if (conn == nil){
+	   	 	return
+	   	 }
+
 		 log.Printf("get_conn fail: %s ", domserver)
 		 return
 	   }
@@ -448,13 +522,17 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 
     		
 	tag  := binary.BigEndian.Uint16(raw[:2])
-	tcpLock.Lock()
-	ele.conn = conn
-	ele.addr = Remoteaddr
-	ele.url = get_url(raw[12:])
-	ele.req_type = raw[len(ele.url)+12+3]
-	g_dns_context_id[tag] = ele
-	tcpLock.Unlock()
+	
+	if (conn != nil) {
+		ele.conn = conn
+		ele.addr = Remoteaddr
+		ele.url = get_url(raw[12:])
+		ele.req_type = raw[len(ele.url)+12+3]
+
+		tcpLock.Lock()
+		g_dns_context_id[tag] = ele
+		tcpLock.Unlock()
+    }
 	//log.Printf("context id : %d",tag)
 
 	nb := make([]byte, len(raw)+2)
