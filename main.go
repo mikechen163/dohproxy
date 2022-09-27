@@ -592,7 +592,7 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
     	
 	    size_2 := binary.BigEndian.Uint16(remoteBuf[(step):(2+step)])
 
-	    if (size <= int(size_2 + 2 + step)) {
+	    if (size < int(size_2 + 2 + step)) {
 	    	return
 	    }
         
@@ -600,6 +600,10 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 	    url := get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
    	    handle_dns_response(remoteBuf[(2+step):(size_2 + 2 + step)] , tag , cliConn,conn,Remoteaddr,url,req_type,cache_flag )
+
+	   if (size <= int(size_2 + 2 + step)) {
+	    	return
+	    }
 
 	   step += size_2 + 2
     }
