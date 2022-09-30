@@ -38,7 +38,7 @@ var oversea_server_list []string
 var oversea_server_ind int
 
 type DnsCache struct {
-	timer *time.Timer
+	//timer *time.Timer
 	ttl  time.Time
 	req_type byte
 	msg []byte
@@ -47,6 +47,7 @@ type DnsCache struct {
 var rwLock *sync.RWMutex 
 var tcpLock *sync.RWMutex 
 var g_buffer map[string]DnsCache
+var g_cache_timer *time.Ticker
 
 
 type TcpConnPool struct {
@@ -142,6 +143,10 @@ func main() {
      g_buffer = make(map[string]DnsCache)
      default_ttl = float64(*ttl)
 
+     dur := time.Duration(int(default_ttl))
+	 g_cache_timer = time.NewTicker(dur * time.Second)
+
+	 go start_cache_timer(g_cache_timer)
 
      tcp_reuse_flag = *tcp_reuse
 
@@ -341,6 +346,22 @@ func keep_alive(ticker *time.Ticker,conn *net.TCPConn) {
 	}//end for
 
 }
+
+func start_cache_timer(ticker *time.Ticker){
+        
+ for {
+	  <- ticker.C
+      
+     for k, v := range g_buffer {
+
+     	 du := time.Since(v.ttl).Seconds() 
+		 if du >  default_ttl {
+		 	//log.Printf("Resource check , release cache: %s ",  k)
+		 	delete_map(k)
+		 }
+     }
+	}//end for
+}        
 
 func get_conn(domserver string, conn *net.UDPConn) (*net.TCPConn) {
 
@@ -763,13 +784,6 @@ func delete_map(key string){
 
 func get_key(url string,req_type byte) string{
 	return url + string(req_type)
-}
-
-func start_cache_timer(timer *time.Timer,url string,req_type byte){
-         <- timer.C
-    	
-        //log.Printf("Timer out , release cache: %s, type=%d ",  url,req_type)
-        delete_map(get_key(url,req_type))
 }
 
 func add_node(msg []byte, url string, req_type byte){
