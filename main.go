@@ -213,7 +213,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				  }
 
                   cache.timer.Stop()
-				  delete_map(get_key(url,req_type))
+				 // delete_map(get_key(url,req_type))
 			  } //ttl valie
 		    }  // cached found
 
