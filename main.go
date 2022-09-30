@@ -212,7 +212,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				    log.Printf("could not write cache to local udp connection: %s", err)
 				  }
 
-                  cache.timer.Stop()
+                 // cache.timer.Stop()
 				 // delete_map(get_key(url,req_type))
 			  } //ttl valie
 		    }  // cached found
@@ -780,10 +780,10 @@ func add_node(msg []byte, url string, req_type byte){
 
 		ele.ttl = time.Now()
 		ele.req_type = req_type
-		dur := time.Duration(int(default_ttl))
-		ele.timer = time.NewTimer(dur * time.Second)
+		//dur := time.Duration(int(default_ttl))
+		//ele.timer = time.NewTimer(dur * time.Second)
 
-		go start_cache_timer(ele.timer,url,req_type)
+		//go start_cache_timer(ele.timer,url,req_type)
 
 		 //log.Printf("Write cache : %s <-> %d ",  url,req_type)
 		
