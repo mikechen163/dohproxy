@@ -38,6 +38,7 @@ var oversea_server_list []string
 var oversea_server_ind int
 
 type DnsCache struct {
+	timer *time.Timer
 	ttl  time.Time
 	req_type byte
 	msg []byte
@@ -210,6 +211,9 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 				  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
 				    log.Printf("could not write cache to local udp connection: %s", err)
 				  }
+
+                  cache.timer.Stop()
+				  delete_map(get_key(url,req_type))
 			  } //ttl valie
 		    }  // cached found
 
@@ -420,6 +424,11 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
 
 		    if cache_flag == true {
 
+		    	//Answer RR number is not zero
+				if ( binary.BigEndian.Uint16(buf[6:8]) == 0){
+					return
+				}
+
 		    	 url = ra.url
 		    	 req_type = ra.req_type
 				
@@ -460,6 +469,11 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
     log.Printf("Normal dns success: %s->%s | %s\n", cliConn.LocalAddr().String(),cliConn.RemoteAddr().String(),url)
 
 	if cache_flag == true {
+
+		//Answer RR number is not zero
+		if ( binary.BigEndian.Uint16(buf[6:8]) == 0){
+			return
+		} 
 
 		if _ , ok := read_map(get_key(url,req_type)); ok {	
 			delete_map(get_key(url,req_type))
@@ -707,6 +721,11 @@ func proxy(dohserver string, conn *net.UDPConn, addr *net.UDPAddr, raw []byte , 
 
 
     if cache_enabled == true {
+
+    	//Answer RR number is not zero
+    	if ( binary.BigEndian.Uint16(msg[6:8]) == 0){
+					return
+		}
     
 		url = get_url(raw[12:])
 		req_type := raw[len(url)+12+3]
@@ -746,6 +765,13 @@ func get_key(url string,req_type byte) string{
 	return url + string(req_type)
 }
 
+func start_cache_timer(timer *time.Timer,url string,req_type byte){
+         <- timer.C
+    	
+        //log.Printf("Timer out , release cache: %s, type=%d ",  url,req_type)
+        delete_map(get_key(url,req_type))
+}
+
 func add_node(msg []byte, url string, req_type byte){
 	    var ele DnsCache
 
@@ -754,6 +780,12 @@ func add_node(msg []byte, url string, req_type byte){
 
 		ele.ttl = time.Now()
 		ele.req_type = req_type
+		dur := time.Duration(int(default_ttl))
+		ele.timer = time.NewTimer(dur * time.Second)
+
+		go start_cache_timer(ele.timer,url,req_type)
+
+		 //log.Printf("Write cache : %s <-> %d ",  url,req_type)
 		
        // g_buffer[get_key(url,req_type)] = ele
        write_map(get_key(url,req_type),ele)
