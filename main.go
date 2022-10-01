@@ -304,7 +304,7 @@ func reset_tcp_conn( conn *net.TCPConn){
         delete(g_tcp_conn_pool,get_tcpconn_key(conn))
         tcpLock.Unlock()
 
-        conn.Close()
+        //conn.Close()
         //ele.ticker.Stop()	
 }
 
@@ -314,6 +314,7 @@ func start_timer(timer *time.Timer ,ticker *time.Ticker , conn *net.TCPConn){
         log.Printf("Timer out , release socket: %s <-> %s ",  conn.LocalAddr().String(), conn.RemoteAddr().String())
         
         reset_tcp_conn(conn)
+        conn.Close()
 
         //log.Printf("tcp_pool_size = %d, dns_context_size = %d ", len(g_tcp_conn_pool), len(g_dns_context_id))
         
