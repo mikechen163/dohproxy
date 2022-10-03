@@ -322,7 +322,9 @@ func start_timer(timer *time.Timer ,ticker *time.Ticker , conn *net.TCPConn){
         if ( (len(g_tcp_conn_pool) == 0 ) && ( len(g_dns_context_id) > 100 ) ) {
 
         	log.Printf("reset dns_context_map,length = %d ",  len(g_dns_context_id))
+        	tcpLock.Lock()
             g_dns_context_id = make(map[uint16]UdpConnPool)
+            tcpLock.Unlock()
            
         }
 
@@ -426,9 +428,9 @@ func handle_dns_response(buf []byte , tag uint16, cliConn *net.TCPConn,conn *net
     
     // packet return not in fifo mode. out-of-order. 
     if (tag != tag2) {
-        //tcpLock.Lock()
+        tcpLock.Lock()
     	ra , ok := g_dns_context_id[tag2]
-    	//tcpLock.Unlock()
+    	tcpLock.Unlock()
 
     	//found context, normal case, keep alive packet will return not found.
     	if (ok) {
@@ -579,10 +581,10 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 		return
     }
 
-    keep alive test packet, do nothing
-    if (conn == nil) {
-    	return
-    }
+    //keep alive test packet, do nothing
+    // if (conn == nil) {
+    // 	return
+    // }
 
 	temp_buf := get_next_buff()
 
