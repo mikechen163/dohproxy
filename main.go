@@ -579,6 +579,11 @@ func tcp_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr, raw
 		return
     }
 
+    keep alive test packet, do nothing
+    if (conn == nil) {
+    	return
+    }
+
 	temp_buf := get_next_buff()
 
 	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
