@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"strings"
+	"strconv"
 	"encoding/binary"
 
 	//"common"
@@ -48,6 +49,7 @@ var rwLock *sync.RWMutex
 var tcpLock *sync.RWMutex 
 var g_buffer map[string]DnsCache
 var g_cache_timer *time.Ticker
+var g_edns_subnet string
 
 
 type TcpConnPool struct {
@@ -76,6 +78,7 @@ func main() {
 	dohserver := flag.String("dohserver", "https://8.8.8.8/dns-query", "DNS Over HTTPS server address")
 	
 	domserver := flag.String("innserver", "223.5.5.5,119.29.29.29", "Domestic Dns server address")
+	edns_subnet := flag.String("subnet", "0.0.0.0", "set edns default subnet")
 	debug := flag.Bool("debug", false, "print debug logs")
 	fallback_mode := flag.Bool("fallback", false, "set fallback mode")
 	cache_enabled := flag.Bool("cached", true, "set cache mode : experiment!")
@@ -128,6 +131,7 @@ func main() {
 
     g_tcp_conn_pool = make(map[string]TcpConnPool)
     g_dns_context_id = make(map[uint16]UdpConnPool)
+    g_edns_subnet = *edns_subnet
 
 
     if (*fallback_mode == true ) {
@@ -155,7 +159,77 @@ func main() {
 	}
 }
 
+func append_edns_subnet(raw []byte, n int)( int ) {
+  
+  //default do nothing
+  if (g_edns_subnet == "0.0.0.0"){
+  	return n
+  }
 
+  
+  //convert from string to int
+  tr := strings.Split(g_edns_subnet,".")
+
+  buf := []byte{0x00,0x00,0x29,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x0b,0x00,0x08,0x00,0x07,0x00,0x01,0x18,0x00,0x67,0x15,0xc7}
+  buflen := len(buf)
+
+  
+  for i, v := range tr {
+  	t , _ := strconv.Atoi(v)
+
+  	if (i < 3) {
+  	  buf[buflen-3+i] = byte(t)
+    }
+  }
+
+
+
+  url := get_url(raw[12:])
+  npos := len(url) + 12 + 6
+
+  //dns rr number = 0 
+  if (raw[11] == 0) {
+    copy(raw[n:],buf)
+    n += len(buf)
+    raw[11] = 1
+    return n
+  }
+
+  
+  if ((raw[11] == 1) && (raw[n-1] == 0)) {
+  copy(raw[npos:],buf)
+  n = npos + len(buf)
+  raw[11] = 1
+  return n
+  }
+
+  //rr > 2 
+  //do nothing
+  return n 
+
+}
+
+func print_buf( raw []byte, size int){
+
+      
+        fmt.Printf("\n") 
+
+	      i := 0
+		 for _, nx := range(raw[:size]) {
+          i += 1
+          fmt.Printf("0x%02x,", nx) 
+         
+          if (i == 16){
+          	i = 0
+           fmt.Printf("\n")
+          }
+
+         }
+
+           fmt.Printf("\n") 
+
+        
+}
 
 func newUDPServer(host string, port int, dohserver string, fallback_mode bool , cache_enabled bool) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
@@ -170,23 +244,9 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 			log.Printf("could not read: %s", err)
 			continue
 		}
-
-   //       i := 0
-		 // for _, nx := range(raw[:64]) {
-   //        i += 1
-   //       fmt.Printf("0x%02x,", nx) 
-         
-   //        if (i == 16){
-   //        	i = 0
-   //         fmt.Printf("\n",n)
-   //        }
-
-   //       }
-
-   //       fmt.Printf("%d \n",n)
-
-
-       
+		
+		//print_buf(raw,n)
+		
 		url := get_url(raw[12:])
         if len(url) == 0 {
         	continue
@@ -248,6 +308,9 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 
 	          }else{
 
+	          	  n := append_edns_subnet(raw,n)
+	          	  //print_buf(raw,n)
+	          	  //return nil
 
 	          	 //log.Printf("req_type %02d , oversea  : %s ", req_type,url)
 			 
@@ -678,13 +741,13 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 	remoteBuf := get_next_buff()
 
 	cliConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, err = cliConn.Read(remoteBuf)
+	n, err := cliConn.Read(remoteBuf)
 	if err != nil {
 		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
 		return
 	}
 
-	if _, err := conn.WriteToUDP(remoteBuf, Remoteaddr); err != nil {
+	if _, err := conn.WriteToUDP(remoteBuf[:n], Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
 		return
 	}
