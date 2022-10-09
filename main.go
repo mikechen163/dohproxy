@@ -337,17 +337,17 @@ func get_available_conn(nstr string)(TcpConnPool, bool) {
 
 	//log.Printf("get_tcp_conn,tcp_pool_size = %d, dns_context_size = %d ", len(g_tcp_conn_pool), len(g_dns_context_id))
      
-    //tcpLock.Lock()
+    tcpLock.Lock()
 	for _, v := range g_tcp_conn_pool {
 		//log.Printf("traval all map k = %s , v = %s , nstr = %s  ",  k, v.conn.RemoteAddr().String(), nstr)
         if (nstr == v.conn.RemoteAddr().String()) {
-        	//tcpLock.Unlock()
+        	tcpLock.Unlock()
         	return v,true
         }
   
     }
 
-    //tcpLock.Unlock()
+    tcpLock.Unlock()
     return tt,false
 }
 
