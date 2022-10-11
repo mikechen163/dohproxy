@@ -19,13 +19,11 @@ Use the -dohserver parameter to modify the overseas dns server.
     ./dohproxy -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
     ./dohproxy -dohserver https://8.8.8.8/dns-query 
 
-For any dns request, first check cn.txt, if found, then forward the dns request to the domestic server, otherwise forward the dns request to an overseas dns server such as dns.google.
-
 3 Support edns subnet feature. You can specify the subnet parameter when forwarding to overseas dns servers. The specific format is :
 
     ./dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
 
-4 Support overseas dns entry caching, activated by default. The maximum length of the cache is ttl. Modify it with the -ttl parameter. 
+4 Support overseas dns entry caching, activated by default.Modify it with the -ttl parameter (default 7200 seconds). 
 
 5 If you use tcp protocol to access overseas dns servers, then you can enable tcp reuse mechanism, which is activated by default. This allows multiple dns requests to use the same tcp link, saving the number of tcp links and increasing the speed of dns queries.
 
@@ -46,13 +44,11 @@ dohproxy是一个本地dns代理程序. 可以运行在本地计算机上,或者
     ./dohproxy  -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
     ./dohproxy  -dohserver https://8.8.8.8/dns-query 
 
-对于任何 dns 请求，首先检查 cn.txt ，如果找到，则将 dns 请求转发到国内服务器，否则将 dns 请求转发到 dns.google 等海外 dns 服务器。
-
 3 支持edns subnet特性.可以指定转发给海外dns服务器时候的subnet参数. 具体格式为:
 
     ./dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
 
-4 支持海外dns条目缓存,缺省激活. 缓存的最大时长为ttl. 通过-ttl参数修改. 
+4 支持海外dns条目缓存,缺省激活. 通过-ttl参数修改最大缺省值 (7200秒). 
 
 5 如果使用tcp协议访问海外dns服务器,那么可以启用tcp 重用机制,缺省激活. 这样多个dns请求可以使用同一个tcp链路,节约tcp链接数目,提高dns查询速度.
 
