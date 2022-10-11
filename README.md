@@ -8,21 +8,22 @@ The main features implemented:
 
 1 dns classification forwarding. According to the domain name of dns, dns requests are forwarded to different dns servers.
 
-  For any dns request, first query the cn.txt file, if there is this domain name in the file, then forward the request to the domestic dns server. The default is 223.5.5.5 129.29.29.29. You can use the -innserver parameter to change the default domestic dns server.
+  For any dns request, first query the cn.txt file, if there is this domain name in the file, then forward the request to the domestic dns server.  The default is 223.5.5.5 129.29.29.29. You can use the -innserver parameter to change the default domestic dns server.
 
   If the domain name is not found in the cn.txt file, it means it is an overseas domain. Then the domain name will be forwarded directly to the configured overseas server. The default is https://8.8.8.8/dns-query.
 Use the -dohserver parameter to modify the overseas dns server.
   
 2 The overseas server supports udp, tcp, and doh protocols in the following format:
-. /dohproxy -dohserver 8.8.8.8,8.8.4.4
-. /dohproxy -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
-. /dohproxy -dohserver https://8.8.8.8/dns-query 
+
+    ./dohproxy -dohserver 8.8.8.8,8.8.4.4
+    ./dohproxy -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
+    ./dohproxy -dohserver https://8.8.8.8/dns-query 
 
 For any dns request, first check cn.txt, if found, then forward the dns request to the domestic server, otherwise forward the dns request to an overseas dns server such as dns.google.
 
 3 Support edns subnet feature. You can specify the subnet parameter when forwarding to overseas dns servers. The specific format is :
 
-. /dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
+    ./dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
 
 4 Support overseas dns entry caching, activated by default. The maximum length of the cache is ttl. Modify it with the -ttl parameter. 
 
@@ -40,15 +41,16 @@ dohproxy是一个本地dns代理程序. 可以运行在本地计算机上,或者
 使用 -dohserver 参数,修改海外的dns服务器.
   
 2 海外服务器支持 udp,tcp,doh协议,具体格式为:
-./dohproxy  -dohserver 8.8.8.8,8.8.4.4
-./dohproxy  -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
-./dohproxy  -dohserver https://8.8.8.8/dns-query 
+
+    ./dohproxy  -dohserver 8.8.8.8,8.8.4.4
+    ./dohproxy  -dohserver tcp://8.8.8.8:53,tcp://8.8.4.4:53
+    ./dohproxy  -dohserver https://8.8.8.8/dns-query 
 
 对于任何 dns 请求，首先检查 cn.txt ，如果找到，则将 dns 请求转发到国内服务器，否则将 dns 请求转发到 dns.google 等海外 dns 服务器。
 
 3 支持edns subnet特性.可以指定转发给海外dns服务器时候的subnet参数. 具体格式为:
 
-./dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
+    ./dohproxy -subnet 100.22.33.0 -dohserver 8.8.8.8
 
 4 支持海外dns条目缓存,缺省激活. 缓存的最大时长为ttl. 通过-ttl参数修改. 
 
