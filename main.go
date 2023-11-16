@@ -233,7 +233,10 @@ func print_buf( raw []byte, size int){
 
 func newUDPServer(host string, port int, dohserver string, fallback_mode bool , cache_enabled bool) error {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(host), Port: port})
-	if err != nil {
+
+     ipv6_null_message := []byte{ 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+                
+    if err != nil {
 		return err
 	}
 	for {
@@ -273,6 +276,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 	              cache.msg[0] = raw[0]
 	              cache.msg[1] = raw[1]
 
+				 
 				  if _, err := conn.WriteToUDP(cache.msg, addr); err != nil {
 				    log.Printf("could not write cache to local udp connection: %s", err)
 				  }
@@ -307,6 +311,25 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
     	         }
 
 	          }else{
+
+                 if req_type == 28 {
+    	         //do not support ipv6 request for oversea
+ 
+                 raw[2] = 0x81
+                 raw[3] = 0x80
+                 raw[7] = 0x01
+                 copy(raw[(len(url)+12+6):], raw[12:(len(url)+16)])
+                 copy(raw[(len(url)+6+(len(url)+16)):], ipv6_null_message)
+                 //log.Printf("null ipv6\n")
+                 //print_buf(raw,len(url)+12+(len(url)+16)+18)
+
+                  if _, err := conn.WriteToUDP(raw[:(len(url)+12+(len(url)+16)+18)], addr); err != nil {
+				    log.Printf("could not write ipv6 deny message to local udp connection: %s", err)
+				  }
+
+    	         continue 
+                 }
+
 
 	          	  n := append_edns_subnet(raw,n)
 	          	  //print_buf(raw,n)
@@ -746,6 +769,8 @@ func domestic_query(domserver string, conn *net.UDPConn, Remoteaddr *net.UDPAddr
 		log.Printf("read remote dns server fail: %s %v\n", nstr,err)
 		return
 	}
+
+	 //print_buf(remoteBuf,n)
 
 	if _, err := conn.WriteToUDP(remoteBuf[:n], Remoteaddr); err != nil {
 		log.Printf("could not write to local connection: %v", err)
