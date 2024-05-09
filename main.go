@@ -68,6 +68,7 @@ type UdpConnPool struct {
 var g_tcp_conn_pool map[string]TcpConnPool
 var g_dns_context_id map[uint16]UdpConnPool
 var tcp_reuse_flag bool
+var ipv6_oversea_flag bool
 var g_google_buf []byte
 
 func main() {
@@ -83,8 +84,10 @@ func main() {
 	fallback_mode := flag.Bool("fallback", false, "set fallback mode")
 	cache_enabled := flag.Bool("cached", true, "set cache mode : experiment!")
 	tcp_reuse := flag.Bool("tcp_reuse", true, "dns over tcp and tcp_reuse_flag : experiment!")
+	ipv6_oversea := flag.Bool("ipv6_oversea", false, "disable ipv6 for oversea domain, default disable : experiment!")
 	chn_file := flag.String("chn", "cn.txt", "default domestic domain list file")
 	block_file := flag.String("block", "block.txt", "default ad keyword list file")
+	
 	flag.Parse()
 
 	gmap = get_config(*chn_file,true)
@@ -92,6 +95,8 @@ func main() {
 
 	g_google_buf = []byte{0x18,0x6f,0x01,0x20,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0x03,0x77,0x77,0x77,0x06,0x67,0x6f,0x6f,0x67,0x6c,0x65,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x29,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00}
 
+
+  
 
 	if *debug {
 		log.SetFlags(log.Lshortfile)
@@ -152,7 +157,17 @@ func main() {
 
 	 go start_cache_timer(g_cache_timer)
 
-     tcp_reuse_flag = *tcp_reuse
+    
+
+      
+     if   *tcp_reuse {
+     	tcp_reuse_flag = true
+     }
+     
+     if   *ipv6_oversea {
+     	ipv6_oversea_flag = true
+     }
+    
 
 	if err := newUDPServer(*host, *port, *dohserver ,*fallback_mode , *cache_enabled); err != nil {
 		log.Fatalf("could not listen on %s:%d: %s", *host, *port, err)
@@ -312,7 +327,7 @@ func newUDPServer(host string, port int, dohserver string, fallback_mode bool , 
 
 	          }else{
 
-                 if req_type == 28 {
+                 if (req_type == 28) && (ipv6_oversea_flag == false) {
     	         //do not support ipv6 request for oversea
  
                  raw[2] = 0x85
